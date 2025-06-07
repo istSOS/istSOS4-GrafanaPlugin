@@ -24,11 +24,18 @@ export interface DataSourceResponse {
  */
 export interface MyDataSourceOptions extends DataSourceJsonData {
   path?: string;
+  apiUrl?: string;
+  // OAuth2 configuration (non-sensitive)
+  oauth2TokenUrl?: string;
+  oauth2Username?: string;
+  oauth2ClientId?: string;
 }
 
 /**
  * Value that is used in the backend, but never sent over HTTP to the frontend
  */
 export interface MySecureJsonData {
-  apiKey?: string;
+  // OAuth2 secure fields
+  oauth2Password?: string;
+  oauth2ClientSecret?: string;
 }
