@@ -97,7 +97,7 @@ const RESULT_FORMAT_OPTIONS: Array<SelectableValue<string>> = [
         {/*
         Basic Query
         */}
-        <FieldSet label="Basic Query">
+        <FieldSet label="Entity Type">
           <InlineFieldRow>
             <InlineField label="Entity" labelWidth={12} tooltip="Select the SensorThings API entity type">
               <Select
@@ -215,11 +215,6 @@ const RESULT_FORMAT_OPTIONS: Array<SelectableValue<string>> = [
             {previewQuery()}
           </div>
         </FieldSet>
-        <InlineFieldRow>
-          <Button onClick={onRunQuery} variant="primary">
-            Run Query
-          </Button>
-        </InlineFieldRow>
       </Stack>
     </div>
   );

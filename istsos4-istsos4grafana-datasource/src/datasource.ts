@@ -11,9 +11,10 @@ import {
 } from '@grafana/data';
 import { getBackendSrv, getTemplateSrv } from '@grafana/runtime';
 
-import { MyQuery, MyDataSourceOptions, DEFAULT_QUERY } from './types';
+import { IstSOS4Query, MyDataSourceOptions, DEFAULT_QUERY, SensorThingsResponse } from './types';
+import { buildApiUrl } from './utils/queryBuilder';
 
-export class DataSource extends DataSourceApi<MyQuery, MyDataSourceOptions> {
+export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions> {
   url?: string;
 
   constructor(private instanceSettings: DataSourceInstanceSettings<MyDataSourceOptions>) {
@@ -21,23 +22,23 @@ export class DataSource extends DataSourceApi<MyQuery, MyDataSourceOptions> {
     this.url = instanceSettings.url;
   }
 
-  getDefaultQuery(_: CoreApp): Partial<MyQuery> {
+  getDefaultQuery(_: CoreApp): Partial<IstSOS4Query> {
     return DEFAULT_QUERY;
   }
 
-  applyTemplateVariables(query: MyQuery, scopedVars: ScopedVars) {
+  applyTemplateVariables(query: IstSOS4Query, scopedVars: ScopedVars) {
     return {
       ...query,
-      queryText: getTemplateSrv().replace(query.queryText, scopedVars),
+      filter: query.filter ? getTemplateSrv().replace(query.filter, scopedVars) : query.filter,
+      alias: query.alias ? getTemplateSrv().replace(query.alias, scopedVars) : query.alias,
     };
   }
 
-  filterQuery(query: MyQuery): boolean {
-    // if no query has been provided, prevent the query from being executed
-    return !!query.queryText;
+  filterQuery(query: IstSOS4Query): boolean {
+    return !!query.entity;
   }
 
-  async query(options: DataQueryRequest<MyQuery>): Promise<DataQueryResponse> {
+  async query(options: DataQueryRequest<IstSOS4Query>): Promise<DataQueryResponse> {
     const promises = options.targets.map(async (target) => {
       if (!this.filterQuery(target)) {
         return createDataFrame({ fields: [] });
@@ -47,14 +48,14 @@ export class DataSource extends DataSourceApi<MyQuery, MyDataSourceOptions> {
         const query = this.applyTemplateVariables(target, options.scopedVars);        
         const routePath = '/sensorapi';
         const path = this.instanceSettings.jsonData.path || '';
-        const apiUrl = `${this.url}${routePath}${path}${query.queryText || ''}`;
+        const baseUrl = `${this.url}${routePath}${path}`;
+        const apiUrl = buildApiUrl(baseUrl, query);
+        console.log('Executing SensorThings API query:', apiUrl);
 
         const response = await getBackendSrv().datasourceRequest({
           url: apiUrl,
           method: 'GET',
-        });
-        
-        // Transform response to Grafana data frames
+        });        
         return this.transformResponse(response, target);
       } catch (error) {
         console.error('Query error:', error);
@@ -147,26 +148,241 @@ export class DataSource extends DataSourceApi<MyQuery, MyDataSourceOptions> {
       };
     }
   }
-  // Function to transform the response to a Grafana data frame
-  // Initial Needs modifications to the response format
-  private transformResponse(response: any, target: MyQuery) {
-    const data = response.data;
-    console.log('API Response:', data);    
-    const frame = createDataFrame({
+
+  // Transform SensorThings API response to Grafana data frames
+  private transformResponse(response: any, target: IstSOS4Query) {
+    const data = response.data as SensorThingsResponse;
+    console.log('SensorThings API Response:', data);
+    switch (target.entity) {
+      case 'Observations':
+        return this.transformObservations(data, target);
+      case 'Datastreams':
+        return this.transformDatastreams(data, target);
+      case 'Things':
+        return this.transformThings(data, target);
+      case 'Locations':
+        return this.transformLocations(data, target);
+      case 'Sensors':
+        return this.transformSensors(data, target);
+      case 'ObservedProperties':
+        return this.transformObservedProperties(data, target);
+      case 'FeaturesOfInterest':
+        return this.transformFeaturesOfInterest(data, target);
+      case 'HistoricalLocations':
+        return this.transformHistoricalLocations(data, target);
+      default:
+        return this.transformGeneric(data, target);
+    }
+  }
+
+  private transformObservations(data: SensorThingsResponse, target: IstSOS4Query) {
+    if (!data.value || data.value.length === 0) {
+      return createDataFrame({
+        refId: target.refId,
+        name: target.alias || 'Observations',
+        fields: [],
+      });
+    }
+
+    const timeValues: number[] = [];
+    const resultValues: any[] = [];
+
+    data.value.forEach((obs: any) => {
+      if (obs.phenomenonTime) {
+        timeValues.push(new Date(obs.phenomenonTime).getTime());
+        resultValues.push(obs.result);
+      }
+    });
+
+    return createDataFrame({
       refId: target.refId,
+      name: target.alias || 'Observations',
       fields: [
         {
           name: 'time',
           type: FieldType.time,
-          values: [Date.now()],
+          values: timeValues,
         },
         {
           name: 'value',
           type: FieldType.number,
-          values: [target.constant],
+          values: resultValues,
         },
       ],
     });
-    return frame;
+  }
+
+  private transformDatastreams(data: SensorThingsResponse, target: IstSOS4Query) {
+    if (!data.value || data.value.length === 0) {
+      return createDataFrame({
+        refId: target.refId,
+        name: target.alias || 'Datastreams',
+        fields: [],
+      });
+    }
+
+    const ids: number[] = [];
+    const names: string[] = [];
+    const descriptions: string[] = [];
+    const units: string[] = [];
+
+    data.value.forEach((ds: any) => {
+      ids.push(ds['@iot.id']);
+      names.push(ds.name || '');
+      descriptions.push(ds.description || '');
+      units.push(ds.unitOfMeasurement?.symbol || '');
+    });
+
+    return createDataFrame({
+      refId: target.refId,
+      name: target.alias || 'Datastreams',
+      fields: [
+        {
+          name: 'id',
+          type: FieldType.number,
+          values: ids,
+        },
+        {
+          name: 'name',
+          type: FieldType.string,
+          values: names,
+        },
+        {
+          name: 'description',
+          type: FieldType.string,
+          values: descriptions,
+        },
+        {
+          name: 'unit',
+          type: FieldType.string,
+          values: units,
+        },
+      ],
+    });
+  }
+
+  private transformThings(data: SensorThingsResponse, target: IstSOS4Query) {
+    if (!data.value || data.value.length === 0) {
+      return createDataFrame({
+        refId: target.refId,
+        name: target.alias || 'Things',
+        fields: [],
+      });
+    }
+
+    const ids: number[] = [];
+    const names: string[] = [];
+    const descriptions: string[] = [];
+
+    data.value.forEach((thing: any) => {
+      ids.push(thing['@iot.id']);
+      names.push(thing.name || '');
+      descriptions.push(thing.description || '');
+    });
+
+    return createDataFrame({
+      refId: target.refId,
+      name: target.alias || 'Things',
+      fields: [
+        {
+          name: 'id',
+          type: FieldType.number,
+          values: ids,
+        },
+        {
+          name: 'name',
+          type: FieldType.string,
+          values: names,
+        },
+        {
+          name: 'description',
+          type: FieldType.string,
+          values: descriptions,
+        },
+      ],
+    });
+  }
+
+  private transformLocations(data: SensorThingsResponse, target: IstSOS4Query) {
+    return this.transformGeneric(data, target);
+  }
+
+  private transformSensors(data: SensorThingsResponse, target: IstSOS4Query) {
+    return this.transformGeneric(data, target);
+  }
+
+  private transformObservedProperties(data: SensorThingsResponse, target: IstSOS4Query) {
+    return this.transformGeneric(data, target);
+  }
+
+  private transformFeaturesOfInterest(data: SensorThingsResponse, target: IstSOS4Query) {
+    return this.transformGeneric(data, target);
+  }
+
+  private transformHistoricalLocations(data: SensorThingsResponse, target: IstSOS4Query) {
+    return this.transformGeneric(data, target);
+  }
+
+  private transformGeneric(data: SensorThingsResponse, target: IstSOS4Query) {
+    if (!data.value || data.value.length === 0) {
+      return createDataFrame({
+        refId: target.refId,
+        name: target.alias || target.entity,
+        fields: [],
+      });
+    }
+
+    const firstItem = data.value[0];
+    const fields: any[] = [];
+
+    // Extract common fields
+    if (firstItem['@iot.id'] !== undefined) {
+      fields.push({
+        name: 'id',
+        type: FieldType.number,
+        values: data.value.map((item: any) => item['@iot.id']),
+      });
+    }
+
+    if (firstItem.name !== undefined) {
+      fields.push({
+        name: 'name',
+        type: FieldType.string,
+        values: data.value.map((item: any) => item.name || ''),
+      });
+    }
+    // if(firstItem['time']!==undefined){
+    //   fields.push({
+    //     name: 'time',
+    //     type: FieldType.time,
+    //     values: data.value.map((item: any) => item.time || ''),
+    //   });
+    // }
+
+    if (firstItem.description !== undefined) {
+      fields.push({
+        name: 'description',
+        type: FieldType.string,
+        values: data.value.map((item: any) => item.description || ''),
+      });
+    }
+    if (fields.length === 0) {
+      fields.push({
+        name: 'data',
+        type: FieldType.string,
+        values: data.value.map((item: any) => JSON.stringify(item)),
+      });
+    }
+    return createDataFrame({
+      refId: target.refId,
+      name: target.alias || target.entity,
+      fields,
+      meta: {
+        custom: {
+          count: data['@iot.count'],
+          nextLink: data['@iot.nextLink'],
+        },
+      },
+    });
   }
 }
