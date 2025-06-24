@@ -1,0 +1,44 @@
+{
+  "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
+  "type": "datasource",
+  "name": "IstSOS4Grafana",
+  "id": "istsos4-istsos4grafana-datasource",
+  "metrics": true,
+  "backend": false,
+  "executable": "gpx_ist_sos4_grafana",
+  "info": {
+    "description": "SensorThings API Grafana data source plugin with",
+    "author": {
+      "name": "Ist sos4"
+    },
+    "keywords": ["datasource", "sensorthings", "oauth2", "iot"],
+    "logos": {
+      "small": "img/logo.svg",
+      "large": "img/logo.svg"
+    },
+    "links": [],
+    "screenshots": [],
+    "version": "%VERSION%",
+    "updated": "%TODAY%"
+  },
+  "dependencies": {
+    "grafanaDependency": ">=10.4.0",
+    "plugins": []
+  },
+  "routes": [
+    {
+      "path": "sensorapi",
+      "url": "{{ .JsonData.apiUrl }}",
+      "tokenAuth": {
+        "url": "{{ .JsonData.apiUrl }}/{{ .JsonData.oauth2TokenUrl }}",
+        "params": {
+          "grant_type": "password",
+          "username": "{{ .JsonData.oauth2Username }}",
+          "password": "{{ .SecureJsonData.oauth2Password }}",
+          "client_id": "{{ .JsonData.oauth2ClientId }}",
+          "client_secret": "{{ .SecureJsonData.oauth2ClientSecret }}"
+        }
+      }
+    }
+  ]
+}
