@@ -140,6 +140,7 @@ export interface Datastream {
     symbol: string;
     definition?: string;
   };
+  Obsevations?: Observation[];
   observationType: string;
   observedArea?: any;
   phenomenonTime?: string;
@@ -232,3 +233,5 @@ export interface MySecureJsonData {
   oauth2Password?: string;
   oauth2ClientSecret?: string;
 }
+
+

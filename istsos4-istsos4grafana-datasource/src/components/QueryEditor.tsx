@@ -1,8 +1,8 @@
-import React, { ChangeEvent } from 'react';
-import { InlineField, Input, Select, TextArea, Stack, InlineFieldRow, Button, FieldSet } from '@grafana/ui';
+import React, { ChangeEvent, useState, useEffect } from 'react';
+import { InlineField, Input, Select, Stack, InlineFieldRow, FieldSet, MultiSelect } from '@grafana/ui';
 import { QueryEditorProps, SelectableValue } from '@grafana/data';
 import { DataSource } from '../datasource';
-import { MyDataSourceOptions, IstSOS4Query, EntityType } from '../types';
+import { MyDataSourceOptions, IstSOS4Query, EntityType, ExpandOption } from '../types';
 import { buildODataQuery } from '../utils/queryBuilder';
 
 type Props = QueryEditorProps<DataSource, IstSOS4Query, MyDataSourceOptions>;
@@ -23,7 +23,23 @@ const RESULT_FORMAT_OPTIONS: Array<SelectableValue<string>> = [
   { label: 'Data Array', value: 'dataArray' },
 ];
 
-  export function QueryEditor({ query, onChange, onRunQuery }: Props) {
+const THINGS_EXPAND_OPTIONS: Array<SelectableValue<EntityType>> = [
+  { label: 'Locations', value: 'Locations', description: 'Include related locations' },
+  { label: 'Datastreams', value: 'Datastreams', description: 'Include related datastreams' },
+  { label: 'HistoricalLocations', value: 'HistoricalLocations', description: 'Include historical locations' },
+];
+
+const DATASTREAMS_EXPAND_OPTIONS: Array<SelectableValue<EntityType>> = [
+  { label: 'Observations', value: 'Observations', description: 'Include related observations' },
+  { label: 'Thing', value: 'Things', description: 'Include the related Thing' },
+  { label: 'Sensor', value: 'Sensors', description: 'Include the related Sensor' },
+  { label: 'ObservedProperty', value: 'ObservedProperties', description: 'Include the related ObservedProperty' },
+];
+
+  export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) {
+  const [entityOptions, setEntityOptions] = useState<Array<SelectableValue<number>>>([]);
+  const [loadingEntities, setLoadingEntities] = useState(false);
+  
   const currentQuery: IstSOS4Query = {
     ...query,
     entity: query.entity || 'Things',
@@ -31,20 +47,54 @@ const RESULT_FORMAT_OPTIONS: Array<SelectableValue<string>> = [
     resultFormat: query.resultFormat || 'default',
   };
 
+  // TODO: Implement Pagination 
+  useEffect(() => {
+    const fetchEntityNames = async () => {
+      if (!currentQuery.entity) return;
+      
+      setLoadingEntities(true);
+      try {
+        const fetchQuery: IstSOS4Query = {
+          ...currentQuery,
+          entityId: undefined,
+          select: ['name', '@iot.id'],
+          top: 100,
+        };
+        
+        const response = await datasource.query({
+          targets: [fetchQuery],
+        } as any, false);
+        
+        if (response.data && response.data.length > 0) {
+          const rawEntities = response.data[0].fields.find((field: any) => field.name === 'entities')?.values?.[0] || [];
+          const options: Array<SelectableValue<number>> = rawEntities.map((entity: any) => ({
+            label: entity.name || `${currentQuery.entity} ${entity['@iot.id']}`,
+            value: entity['@iot.id'],
+          }));
+          
+          setEntityOptions(options);
+          console.log('Fetched entity names:', options);
+        }
+      } catch (error) {
+        console.error('Error fetching entity names:', error);
+        setEntityOptions([]);
+      } finally {
+        setLoadingEntities(false);
+      }
+    };
+
+    fetchEntityNames();
+  }, [currentQuery.entity, datasource]);
+
   const onEntityChange = (value: SelectableValue<EntityType>) => {
-    onChange({ ...currentQuery, entity: value.value! });
+    onChange({ ...currentQuery, entity: value.value!, entityId: undefined });
   };
 
-  const onEntityIdChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const value = event.target.value;
+  const onEntityNameChange = (value: SelectableValue<number>) => {
     onChange({
       ...currentQuery,
-      entityId: value ? parseInt(value, 10) : undefined,
+      entityId: value.value,
     });
-  };
-
-  const onFilterChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
-    onChange({ ...currentQuery, filter: event.target.value });
   };
 
   const onSelectChange = (event: ChangeEvent<HTMLInputElement>) => {
@@ -79,24 +129,22 @@ const RESULT_FORMAT_OPTIONS: Array<SelectableValue<string>> = [
     onChange({ ...currentQuery, alias: event.target.value });
   };
 
+  const onExpandChange = (values: Array<SelectableValue<EntityType>>) => {
+    const expandOptions: ExpandOption[] = values.map(value => ({
+      entity: value.value!
+    }));
+    onChange({ ...currentQuery, expand: expandOptions.length > 0 ? expandOptions : undefined });
+  };
+
   const previewQuery = () => {
     const queryString = buildODataQuery(currentQuery);
     const fullUrl = `/${currentQuery.entity}${currentQuery.entityId ? `(${currentQuery.entityId})` : ''}${queryString}`;
     return fullUrl;
   };
 
-  const insertFilterExample = (example: string) => {
-    const currentFilter = currentQuery.filter || '';
-    const newFilter = currentFilter ? `${currentFilter} and ${example}` : example;
-    onChange({ ...currentQuery, filter: newFilter });
-  };
-
   return (
     <div>
       <Stack gap={1}>
-        {/*
-        Basic Query
-        */}
         <FieldSet label="Entity Type">
           <InlineFieldRow>
             <InlineField label="Entity" labelWidth={12} tooltip="Select the SensorThings API entity type">
@@ -107,16 +155,46 @@ const RESULT_FORMAT_OPTIONS: Array<SelectableValue<string>> = [
                 width={20}
               />
             </InlineField>
-            <InlineField label="Entity ID" labelWidth={12} tooltip="Optional: Specify a specific entity ID">
-              <Input
-                value={currentQuery.entityId || ''}
-                onChange={onEntityIdChange}
-                width={10}
-                type="number"
-                placeholder="Optional"
+            <InlineField label="Name" labelWidth={12} tooltip="Select a specific entity by name">
+              <Select
+                options={entityOptions}
+                value={entityOptions.find((opt) => opt.value === currentQuery.entityId)}
+                onChange={onEntityNameChange}
+                width={20}
+                placeholder={loadingEntities ? "Loading..." : "Select entity..."}
+                isLoading={loadingEntities}
               />
             </InlineField>
-          </InlineFieldRow>
+          </InlineFieldRow>          
+          {currentQuery.entity === 'Things' && (
+            <InlineFieldRow>
+              <InlineField label="Expand Entities" labelWidth={12} tooltip="Select related entities to include in the response" grow>
+                <MultiSelect
+                  options={THINGS_EXPAND_OPTIONS}
+                  value={currentQuery.expand?.map(exp => 
+                    THINGS_EXPAND_OPTIONS.find(opt => opt.value === exp.entity)
+                  ).filter(Boolean) as SelectableValue<EntityType>[] || []}
+                  onChange={onExpandChange}
+                  placeholder="Select entities to expand..."
+                />
+              </InlineField>
+            </InlineFieldRow>
+          )}
+          {currentQuery.entity === 'Datastreams' && (
+            <InlineFieldRow>
+              <InlineField label="Expand Entities" labelWidth={12} tooltip="Select related entities to include in the response" grow>
+                <MultiSelect
+                  options={DATASTREAMS_EXPAND_OPTIONS}
+                  value={currentQuery.expand?.map(exp => 
+                    DATASTREAMS_EXPAND_OPTIONS.find(opt => opt.value === exp.entity)
+                  ).filter(Boolean) as SelectableValue<EntityType>[] || []}
+                  onChange={onExpandChange}
+                  placeholder="Select entities to expand..."
+                />
+              </InlineField>
+            </InlineFieldRow>
+          )}
+          
           <div style={{ height: '10x' }} />
           <InlineFieldRow>
             <InlineField label="Alias" labelWidth={12} tooltip="Display name for this query">
@@ -132,40 +210,7 @@ const RESULT_FORMAT_OPTIONS: Array<SelectableValue<string>> = [
             </InlineField>
           </InlineFieldRow>
         </FieldSet>
-        <FieldSet label="Filter">
-          <InlineFieldRow>
-            <InlineField label="$filter" labelWidth={12} tooltip="OData filter expression" grow>
-              <TextArea
-                value={currentQuery.filter || ''}
-                onChange={onFilterChange}
-                rows={3}
-                placeholder="e.g., name eq 'Temperature Sensor' or @iot.id gt 10"
-              />
-            </InlineField>
-          </InlineFieldRow>
-
-          <InlineFieldRow>
-            <Stack direction="row" gap={1}>
-              <Button size="sm" variant="secondary" onClick={() => insertFilterExample("name eq 'example'")}>
-                Name Equals
-              </Button>
-              <Button size="sm" variant="secondary" onClick={() => insertFilterExample('@iot.id gt 0')}>
-                ID Greater Than
-              </Button>
-              <Button size="sm" variant="secondary" onClick={() => insertFilterExample("contains(name,'temp')")}>
-                Name Contains
-              </Button>
-              <Button
-                size="sm"
-                variant="secondary"
-                onClick={() => insertFilterExample('phenomenonTime ge 2023-01-01T00:00:00Z')}
-              >
-                Time After
-              </Button>
-            </Stack>
-          </InlineFieldRow>
-        </FieldSet>
-
+        
         {/* Advanced Options */}
         <FieldSet label="Advanced Options">
           <InlineFieldRow>
@@ -199,23 +244,32 @@ const RESULT_FORMAT_OPTIONS: Array<SelectableValue<string>> = [
             </InlineField>
           </InlineFieldRow>
         </FieldSet>
-
-        {/* Query Preview */}
+      </Stack>
+      <div style={{ width: '100%' }}>
         <FieldSet label="Query Preview">
           <div
             style={{
-              padding: 8,
-              backgroundColor: 'black       ',
-              borderRadius: 4,
+              padding: '8px',
+              backgroundColor: '#1f1f1f',
+              borderRadius: '4px',
               fontFamily: 'monospace',
-              fontSize: '12px',
-              wordBreak: 'break-all',
+              fontSize: '14px',
+              color: '#ffffff',
+              border: '1px solid #333',
+              maxHeight: '120px',
+              overflowY: 'auto',
+              overflowX: 'auto',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              lineHeight: '1.4',
+              width: '100%',
+              boxSizing: 'border-box'
             }}
           >
             {previewQuery()}
           </div>
         </FieldSet>
-      </Stack>
+      </div>
     </div>
   );
 }

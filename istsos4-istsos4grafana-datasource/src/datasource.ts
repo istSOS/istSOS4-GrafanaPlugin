@@ -37,8 +37,12 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
   filterQuery(query: IstSOS4Query): boolean {
     return !!query.entity;
   }
-
-  async query(options: DataQueryRequest<IstSOS4Query>): Promise<DataQueryResponse> {
+  /**
+   * transformResponse: weather to transform the response into Grafana data frames or return raw data.
+   * If true, the response will be transformed into Grafana data frames.
+   * it maybe useful for intermediate requests (when we do not need to display the response in Grafana panels).
+   */
+  async query(options: DataQueryRequest<IstSOS4Query>, transformResponse: boolean = true): Promise<DataQueryResponse> {
     const promises = options.targets.map(async (target) => {
       if (!this.filterQuery(target)) {
         return createDataFrame({ fields: [] });
@@ -56,7 +60,30 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
           url: apiUrl,
           method: 'GET',
         });        
-        return this.transformResponse(response, target);
+        
+        if (transformResponse) {
+          return this.transformResponse(response, target);
+        } else {
+          const rawData = response.data as SensorThingsResponse;
+          return createDataFrame({
+            refId: target.refId,
+            name: target.alias || target.entity,
+            fields: [
+              {
+                name: 'entities',
+                type: FieldType.other,
+                values: [rawData.value || []],
+              },
+            ],
+            meta: {
+              custom: {
+                rawResponse: rawData,
+                count: rawData['@iot.count'],
+                nextLink: rawData['@iot.nextLink'],
+              },
+            },
+          });
+        }
       } catch (error) {
         console.error('Query error:', error);
         return createDataFrame({
@@ -157,6 +184,9 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
       case 'Observations':
         return this.transformObservations(data, target);
       case 'Datastreams':
+        if (target.entityId) {
+          return this.transformSingleDatastream(data, target);
+        }
         return this.transformDatastreams(data, target);
       case 'Things':
         return this.transformThings(data, target);
@@ -211,8 +241,131 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
       ],
     });
   }
+  // Handle single datastream
+  private transformSingleDatastream(data: any, target: IstSOS4Query) {
+    console.log('Transforming single datastream - entityId:', target.entityId);
+    if (!data) {
+      return createDataFrame({
+        refId: target.refId,
+        name: target.alias || 'Datastream',
+        fields: [],
+      });
+    }
 
+    const datastream = data;
+    console.log('Processing single datastream:', datastream);
+    
+    const unitOfMeasurement = datastream.unitOfMeasurement || {};
+    const unitName = unitOfMeasurement.name || 'Unknown';
+    const unitSymbol = unitOfMeasurement.symbol || '';
+    const unitDefinition = unitOfMeasurement.definition || '';    
+    const hasExpandedObservations = target.expand?.some(exp => exp.entity === 'Observations');
+    
+    if (hasExpandedObservations && datastream.Observations && datastream.Observations.length > 0) {
+      console.log('Creating time series with observations count:', datastream.Observations.length);
+      
+      const timeValues: number[] = [];
+      const resultValues: any[] = [];
+      
+      datastream.Observations.forEach((obs: any) => {
+        if (obs.phenomenonTime) {
+          timeValues.push(new Date(obs.phenomenonTime).getTime());
+          resultValues.push(obs.result);
+        }
+      });
+      
+      return createDataFrame({
+        refId: target.refId,
+        name: target.alias || datastream.name || `${unitName} (${unitSymbol})`,
+        fields: [
+          {
+            name: 'time',
+            type: FieldType.time,
+            values: timeValues,
+          },
+          {
+            name: unitSymbol || 'value',
+            type: FieldType.number,
+            values: resultValues,
+            config: {
+              displayName: `${unitName} (${unitSymbol})`,
+              unit: unitSymbol,
+            },
+          },
+        ],
+        meta: {
+          custom: {
+            datastreamId: datastream['@iot.id'],
+            datastreamName: datastream.name,
+            unitOfMeasurement: {
+              name: unitName,
+              symbol: unitSymbol,
+              definition: unitDefinition,
+            },
+            observationCount: datastream.Observations.length,
+            phenomenonTime: datastream.phenomenonTime,
+            observationType: datastream.observationType,
+            observedArea: datastream.observedArea,
+            properties: datastream.properties,
+          },
+        },
+      });
+    } else {
+      return createDataFrame({
+        refId: target.refId,
+        name: target.alias || datastream.name || `Datastream ${datastream['@iot.id']}`,
+        fields: [
+          {
+            name: 'property',
+            type: FieldType.string,
+            values: [
+              'ID', 
+              'Name', 
+              'Description', 
+              'Unit Name', 
+              'Unit Symbol', 
+              'Unit Definition', 
+              'Observation Type',
+              'Phenomenon Time'
+            ],
+          },
+          {
+            name: 'value',
+            type: FieldType.string,
+            values: [
+              datastream['@iot.id']?.toString() || '',
+              datastream.name || '',
+              datastream.description || '',
+              unitName,
+              unitSymbol,
+              unitDefinition,
+              datastream.observationType || '',
+              datastream.phenomenonTime || '',
+            ],
+          },
+        ],
+        meta: {
+          custom: {
+            datastreamId: datastream['@iot.id'],
+            datastreamName: datastream.name,
+            unitOfMeasurement: {
+              name: unitName,
+              symbol: unitSymbol,
+              definition: unitDefinition,
+            },
+            phenomenonTime: datastream.phenomenonTime,
+            observationType: datastream.observationType,
+            observedArea: datastream.observedArea,
+            properties: datastream.properties,
+          },
+        },
+      });
+    }
+  }
+
+  // Handle multiple datastreams
   private transformDatastreams(data: SensorThingsResponse, target: IstSOS4Query) {
+    console.log('Transforming multiple datastreams');
     if (!data.value || data.value.length === 0) {
       return createDataFrame({
         refId: target.refId,
@@ -225,39 +378,64 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
     const names: string[] = [];
     const descriptions: string[] = [];
     const units: string[] = [];
+    const unitNames: string[] = [];
+    const unitDefinitions: string[] = [];
 
     data.value.forEach((ds: any) => {
       ids.push(ds['@iot.id']);
       names.push(ds.name || '');
       descriptions.push(ds.description || '');
-      units.push(ds.unitOfMeasurement?.symbol || '');
+      
+      const unitOfMeasurement = ds.unitOfMeasurement || {};
+      units.push(unitOfMeasurement.symbol || '');
+      unitNames.push(unitOfMeasurement.name || '');
+      unitDefinitions.push(unitOfMeasurement.definition || '');
+      
     });
+
+    const fields = [
+      {
+        name: 'id',
+        type: FieldType.number,
+        values: ids,
+      },
+      {
+        name: 'name',
+        type: FieldType.string,
+        values: names,
+      },
+      {
+        name: 'description',
+        type: FieldType.string,
+        values: descriptions,
+      },
+      {
+        name: 'unit_symbol',
+        type: FieldType.string,
+        values: units,
+      },
+      {
+        name: 'unit_name',
+        type: FieldType.string,
+        values: unitNames,
+      },
+      {
+        name: 'unit_definition',
+        type: FieldType.string,
+        values: unitDefinitions,
+      },
+    ];
+
 
     return createDataFrame({
       refId: target.refId,
       name: target.alias || 'Datastreams',
-      fields: [
-        {
-          name: 'id',
-          type: FieldType.number,
-          values: ids,
+      fields,
+      meta: {
+        custom: {
+          expandedEntities: target.expand?.map(exp => exp.entity) || [],
         },
-        {
-          name: 'name',
-          type: FieldType.string,
-          values: names,
-        },
-        {
-          name: 'description',
-          type: FieldType.string,
-          values: descriptions,
-        },
-        {
-          name: 'unit',
-          type: FieldType.string,
-          values: units,
-        },
-      ],
+      },
     });
   }
 
