@@ -105,8 +105,10 @@ export function buildODataQuery(query: IstSOS4Query): string {
 
   if (query.expand && query.expand.length > 0) {
     const expandParts = query.expand.map(exp => {
-      let expandStr = exp.entity;
-      if (exp.subQuery) {
+      let expandStr = exp.entity;      
+      if (exp.entity === 'HistoricalLocations') {
+        expandStr += '($expand=Locations)';
+      } else if (exp.subQuery) {
         const subParams: string[] = [];
         if (exp.subQuery.filter) subParams.push(`$filter=${encodeURIComponent(exp.subQuery.filter)}`);
         if (exp.subQuery.select) subParams.push(`$select=${exp.subQuery.select.join(',')}`);

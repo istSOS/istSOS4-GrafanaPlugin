@@ -14,6 +14,8 @@ import { getBackendSrv, getTemplateSrv } from '@grafana/runtime';
 import { IstSOS4Query, MyDataSourceOptions, DEFAULT_QUERY, SensorThingsResponse } from './types';
 import { buildApiUrl } from './utils/queryBuilder';
 
+import { convertEPSG2056ToWGS84 } from 'utils/utils'; 
+
 export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions> {
   url?: string;
 
@@ -43,6 +45,7 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
    * it maybe useful for intermediate requests (when we do not need to display the response in Grafana panels).
    */
   async query(options: DataQueryRequest<IstSOS4Query>, transformResponse: boolean = true): Promise<DataQueryResponse> {
+    console.log('Executing query with options:', options);
     const promises = options.targets.map(async (target) => {
       if (!this.filterQuery(target)) {
         return createDataFrame({ fields: [] });
@@ -189,6 +192,9 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
         }
         return this.transformDatastreams(data, target);
       case 'Things':
+        if (target.entityId) {
+          return this.transformSingleThing(data, target);
+        }
         return this.transformThings(data, target);
       case 'Locations':
         return this.transformLocations(data, target);
@@ -357,6 +363,143 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
             observationType: datastream.observationType,
             observedArea: datastream.observedArea,
             properties: datastream.properties,
+          },
+        },
+      });
+    }
+  }
+
+  // Handle single Thing
+  private transformSingleThing(data: any, target: IstSOS4Query) {
+    console.log('Transforming single Thing - entityId:', target.entityId);
+    if (!data) {
+      return createDataFrame({
+        refId: target.refId,
+        name: target.alias || 'Thing',
+        fields: [],
+      });
+    }
+
+    const thing = data;
+    console.log('Processing single Thing:', thing);
+    
+    const hasExpandedHistoricalLocations = target.expand?.some(exp => exp.entity === 'HistoricalLocations');
+    
+    if (hasExpandedHistoricalLocations && thing.HistoricalLocations && thing.HistoricalLocations.length > 0) {
+      console.log('Creating geospatial data with historical locations count:', thing.HistoricalLocations.length);
+      
+      const timeValues: number[] = [];
+      const latValues: number[] = [];
+      const lonValues: number[] = [];
+      const locationNames: string[] = [];
+      const locationDescriptions: string[] = [];
+      
+      thing.HistoricalLocations.forEach((histLoc: any) => {
+        if (histLoc.time && histLoc.Locations && histLoc.Locations.length > 0) {
+          timeValues.push(new Date(histLoc.time).getTime());          
+            // This is assumption till now
+            // Use first location if multiple
+            const location = histLoc.Locations[0]; 
+            locationNames.push(location.name || '');
+            locationDescriptions.push(location.description || '');            
+            if (location.location && location.location.coordinates) {
+              const coords = location.location.coordinates;
+              if (Array.isArray(coords) && coords.length >= 2) {
+                const x=coords[0];
+                const y=coords[1];
+                const [lon,lat] = convertEPSG2056ToWGS84(x, y);
+                lonValues.push(lon);
+                latValues.push(lat);
+              } 
+            } 
+        }
+      });
+      console.log("All lengths:", 
+        timeValues.length, 
+        latValues.length, 
+        lonValues.length, 
+        locationNames.length, 
+        locationDescriptions.length
+      )
+      
+      return createDataFrame({
+        refId: target.refId,
+        name: target.alias || thing.name || `Thing ${thing['@iot.id']} Locations`,
+        fields: [
+          {
+            name: 'time',
+            type: FieldType.time,
+            values: timeValues,
+          },
+          {
+            name: 'latitude',
+            type: FieldType.number,
+            values: latValues,
+            config: {
+              displayName: 'Latitude',
+              unit: 'degree',
+            },
+          },
+          {
+            name: 'longitude',
+            type: FieldType.number,
+            values: lonValues,
+            config: {
+              displayName: 'Longitude',
+              unit: 'degree',
+            },
+          },
+          {
+            name: 'location_name',
+            type: FieldType.string,
+            values: locationNames,
+          },
+          {
+            name: 'location_description',
+            type: FieldType.string,
+            values: locationDescriptions,
+          },
+        ],
+        meta: {
+          custom: {
+            thingId: thing['@iot.id'],
+            thingName: thing.name,
+            thingDescription: thing.description,
+            historicalLocationCount: thing.HistoricalLocations.length,
+            properties: thing.properties,
+            isGeospatialData: true,
+          },
+        },
+      });
+    } else {
+      return createDataFrame({
+        refId: target.refId,
+        name: target.alias || thing.name || `Thing ${thing['@iot.id']}`,
+        fields: [
+          {
+            name: 'property',
+            type: FieldType.string,
+            values: [
+              'ID', 
+              'Name', 
+              'Description',
+            ],
+          },
+          {
+            name: 'value',
+            type: FieldType.string,
+            values: [
+              thing['@iot.id']?.toString() || '',
+              thing.name || '',
+              thing.description || '',
+            ],
+          },
+        ],
+        meta: {
+          custom: {
+            thingId: thing['@iot.id'],
+            thingName: thing.name,
+            thingDescription: thing.description,
           },
         },
       });
