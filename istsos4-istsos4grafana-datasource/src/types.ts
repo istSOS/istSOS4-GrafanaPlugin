@@ -43,7 +43,11 @@ export const DEFAULT_QUERY: Partial<IstSOS4Query> = {
   count: false,
   resultFormat: 'default',
 };
-
+export interface Entity {
+  '@iot.id': number;
+  name?: string;
+  description?: string;
+}
 // Entity types
 export type EntityType = 
   | 'Things'

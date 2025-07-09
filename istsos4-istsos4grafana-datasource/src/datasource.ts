@@ -14,7 +14,7 @@ import { getBackendSrv, getTemplateSrv } from '@grafana/runtime';
 import { IstSOS4Query, MyDataSourceOptions, DEFAULT_QUERY, SensorThingsResponse } from './types';
 import { buildApiUrl } from './utils/queryBuilder';
 
-import { convertEPSG2056ToWGS84 } from 'utils/utils'; 
+import { convertEPSG2056ToWGS84, formatPhenomenonTime } from './utils/utils'; 
 
 export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions> {
   url?: string;
@@ -346,7 +346,7 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
               unitSymbol,
               unitDefinition,
               datastream.observationType || '',
-              datastream.phenomenonTime || '',
+              formatPhenomenonTime(datastream.phenomenonTime),
             ],
           },
         ],
@@ -523,6 +523,7 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
     const units: string[] = [];
     const unitNames: string[] = [];
     const unitDefinitions: string[] = [];
+    const phenomenonTimes: string[] = [];
 
     data.value.forEach((ds: any) => {
       ids.push(ds['@iot.id']);
@@ -534,6 +535,8 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
       unitNames.push(unitOfMeasurement.name || '');
       unitDefinitions.push(unitOfMeasurement.definition || '');
       
+      // Format phenomenon time using utility function
+      phenomenonTimes.push(formatPhenomenonTime(ds.phenomenonTime));
     });
 
     const fields = [
@@ -567,8 +570,15 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
         type: FieldType.string,
         values: unitDefinitions,
       },
+      {
+        name: 'phenomenon_time',
+        type: FieldType.string,
+        values: phenomenonTimes,
+        config: {
+          displayName: 'Phenomenon Time',
+        },
+      },
     ];
-
 
     return createDataFrame({
       refId: target.refId,
