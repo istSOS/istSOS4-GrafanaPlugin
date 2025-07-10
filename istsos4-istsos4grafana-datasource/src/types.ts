@@ -160,6 +160,12 @@ export interface ComplexFilter extends FilterCondition {
   expression: string;
 }
 
+export interface ObservationFilter extends FilterCondition {
+  type: 'Observation';
+  field: 'result' | 'phenomenonTime' | 'resultTime';
+  operator: ComparisonOperator;
+}
+
 // Query builder interface
 export interface QueryBuilder {
   entity(type: EntityType): QueryBuilder;

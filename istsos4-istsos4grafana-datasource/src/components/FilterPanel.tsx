@@ -13,6 +13,7 @@ import {
   SpatialFilter,
   ComplexFilter,
   EntityType,
+  ObservationFilter,
 } from '../types';
 import { COMMON_FIELDS, OBSERVATION_FIELDS, FILTER_TYPES, COMPARISON_OPERATORS, STRING_OPERATORS, SPATIAL_OPERATORS, TEMPORAL_FUNCTIONS, GEOMETRY_TYPES, MEASUREMENT_FIELDS, TEMPORAL_FIELDS, SPATIAL_FIELDS } from '../utils/constants';
 
@@ -87,6 +88,15 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
           expression: '',
         } as ComplexFilter;
         break;
+      case 'Observation':
+        const defaultField = OBSERVATION_FIELDS[0].value!;
+        newFilter = {
+          ...baseFilter,
+          field: defaultField,
+          operator: 'eq',
+          value: defaultField === 'result' ? '0' : new Date().toISOString(),
+        } as ObservationFilter;
+        break;
       default:
         newFilter = baseFilter;
     }
@@ -139,6 +149,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
         return renderSpatialFilter(filter as SpatialFilter, index);
       case 'complex':
         return renderComplexFilter(filter as ComplexFilter, index);
+      case 'Observation':
+        return renderObservationFilter(filter as ObservationFilter, index);
       default:
         return null;
     }
@@ -456,6 +468,73 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
               rows={5}
               placeholder="e.g., unitOfMeasurement/name eq 'degree Celsius' and result gt 20"
             />
+          </InlineField>
+        </InlineFieldRow>
+      </div>
+    );
+  };
+
+  const formatDateForInput = (dateString: string | undefined): string => {
+    if (!dateString) return '';
+    try {
+      return new Date(dateString).toISOString().slice(0, 16);
+    } catch (e) {
+      console.error('Invalid date format:', dateString);
+      return '';
+    }
+  };
+
+  const renderObservationFilter = (filter: ObservationFilter, index: number) => {
+    return (
+      <div className={styles.filterForm}>
+        <InlineFieldRow>
+          <InlineField label="Field" labelWidth={10}>
+            <Select
+              options={OBSERVATION_FIELDS}
+              value={filter.field}
+              onChange={v => {
+                const newValue = v.value === 'result' ? '0' : new Date().toISOString();
+                updateFilter(index, { field: v.value!, value: newValue });
+              }}
+              width={20}
+            />
+          </InlineField>
+        </InlineFieldRow>
+        
+        <InlineFieldRow>
+          <InlineField label="Operator" labelWidth={10}>
+            <Select
+              options={COMPARISON_OPERATORS}
+              value={filter.operator}
+              onChange={v => updateFilter(index, { operator: v.value! })}
+              width={20}
+            />
+          </InlineField>
+        </InlineFieldRow>
+        
+        <InlineFieldRow>
+          <InlineField label="Value" labelWidth={10}>
+            {filter.field === 'result' ? (
+              <Input
+                value={filter.value as string}
+                onChange={e => updateFilter(index, { value: e.currentTarget.value })}
+                width={20}
+              />
+            ) : (
+              <Input
+                type="datetime-local"
+                value={formatDateForInput(filter.value as string)}
+                onChange={e => {
+                  try {
+                    const date = new Date(e.currentTarget.value);
+                    updateFilter(index, { value: date.toISOString() });
+                  } catch (error) {
+                    console.error('Invalid date input:', error);
+                  }
+                }}
+                width={20}
+              />
+            )}
           </InlineField>
         </InlineFieldRow>
       </div>

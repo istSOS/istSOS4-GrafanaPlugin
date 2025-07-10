@@ -45,6 +45,17 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
       if (!newQuery.expand.some(exp => exp.entity === 'Observations')) {
         newQuery.expand.push({ entity: 'Observations' });
       }
+      
+      // Move any Observation filters to the Observations expansion if they exist
+      // if (newQuery.filters && newQuery.filters.length > 0) {
+      //   const observationFilters = newQuery.filters.filter(f => f.type === 'Observation');
+      //   const otherFilters = newQuery.filters.filter(f => f.type !== 'Observation');
+        
+      //   if (observationFilters.length > 0) {
+      //     // Keep only non-Observation filters in the main filters array
+      //     newQuery.filters = otherFilters;
+      //   }
+      // }
     }
     
     onChange(newQuery);
@@ -98,7 +109,25 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
   };
 
   const onFiltersChange = (filters: FilterCondition[]) => {
-    onChange({ ...currentQuery, filters });
+    const currentFilters = currentQuery.filters || [];    
+    const hadObservationFilters = currentFilters.some(f => f.type === 'Observation');
+    const hasObservationFilters = filters.some(f => f.type === 'Observation');
+    
+    // If we're removing all Observation filters and the entity is Datastreams
+    if (hadObservationFilters && !hasObservationFilters && currentQuery.entity === 'Datastreams') {
+      // Find and update the Observations expand to remove any filter
+      const newExpand = currentQuery.expand?.map(exp => {
+        if (exp.entity === 'Observations' && exp.subQuery?.filter) {
+          const newSubQuery = { ...exp.subQuery };
+          delete newSubQuery.filter;
+          return { ...exp, subQuery: Object.keys(newSubQuery).length > 0 ? newSubQuery : undefined };
+        }
+        return exp;
+      });      
+      onChange({ ...currentQuery, filters, expand: newExpand });
+    } else {
+      onChange({ ...currentQuery, filters });
+    }
   };
 
   const previewQuery = () => {
@@ -129,7 +158,6 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
       } as any, false);
       
       if (response.data && response.data.length > 0 && response.data[0].meta?.custom?.rawResponse) {
-        // Extract data from the raw response
         const rawResponse = response.data[0].meta.custom.rawResponse;
         if (rawResponse.value && Array.isArray(rawResponse.value)) {
           setEntityList(rawResponse.value);
@@ -186,7 +214,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
                 placeholder="Enter entity ID"
               />
             </InlineField>
-          </InlineFieldRow>          
+          </InlineFieldRow>
           {currentQuery.entity === 'Things' && (
             <InlineFieldRow>
               <InlineField label="Expand Entities" labelWidth={12} tooltip="Select related entities to include in the response" grow>

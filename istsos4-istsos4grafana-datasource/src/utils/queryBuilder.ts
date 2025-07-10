@@ -1,4 +1,4 @@
-import { IstSOS4Query, EntityType, QueryBuilder as MyQueryBuilder, OrderByOption, FilterCondition, TemporalFilter, SpatialFilter } from '../types';
+import { IstSOS4Query, EntityType, QueryBuilder as MyQueryBuilder, OrderByOption, FilterCondition, TemporalFilter, SpatialFilter, ObservationFilter } from '../types';
 
 /*
 This file contains the Query Builder class.
@@ -97,17 +97,46 @@ export function createQueryBuilder(): QueryBuilder {
  */
 export function buildODataQuery(query: IstSOS4Query): string {
   const params: string[] = [];
+  
+  let observationFilters: FilterCondition[] = [];
+  let otherFilters: FilterCondition[] = [];
+  
+  if (query.filters && query.filters.length > 0) {
+    observationFilters = query.filters.filter(f => f.type === 'Observation');
+    otherFilters = query.filters.filter(f => f.type !== 'Observation');
+  }
   if (query.entity === 'Datastreams') {
     query.expand = query.expand || [];
-    if (!query.expand.some(exp => exp.entity === 'Observations')) {
-      query.expand.push({ entity: 'Observations' });
+    
+    // Find existing Observations expand option
+    let observationsExpand = query.expand.find(exp => exp.entity === 'Observations');
+    if (!observationsExpand) {
+      observationsExpand = { entity: 'Observations' };
+      query.expand.push(observationsExpand);
+    }
+    
+    // If we have Observation filters, add them to the Observations expand
+    if (observationFilters.length > 0) {
+      const observationFilterExpression = buildFilterExpression(observationFilters);
+      if (observationFilterExpression) {
+        observationsExpand.subQuery = observationsExpand.subQuery || {};
+        observationsExpand.subQuery.filter = observationFilterExpression;
+        console.log('Applied observation filter to expand:', observationFilterExpression);
+      }
+    } else {
+      // If there are no Observation filters but there is an Observations expand with a filter,
+      // remove the filter from the subQuery
+      if (observationsExpand.subQuery?.filter) {
+        const newSubQuery = { ...observationsExpand.subQuery };
+        delete newSubQuery.filter;
+        observationsExpand.subQuery = Object.keys(newSubQuery).length > 0 ? newSubQuery : undefined;
+      }
     }
   }
 
-
-  // Process structured filters if they exist and convert to OData filter string
-  if (query.filters && query.filters.length > 0) {
-    const filterExpression = buildFilterExpression(query.filters);
+  // Process remaining filters (non-Observation filters)
+  if (otherFilters.length > 0) {
+    const filterExpression = buildFilterExpression(otherFilters);
     if (filterExpression) {
       params.push(`$filter=${encodeURIComponent(filterExpression)}`);
     }
@@ -126,7 +155,7 @@ export function buildODataQuery(query: IstSOS4Query): string {
         // else if may be wrong here, Fix it later
       } else if (exp.subQuery) {
         const subParams: string[] = [];
-        if (exp.subQuery.filter) subParams.push(`$filter=${encodeURIComponent(exp.subQuery.filter)}`);
+        if (exp.subQuery.filter) subParams.push(`$filter=${exp.subQuery.filter}`);
         if (exp.subQuery.select) subParams.push(`$select=${exp.subQuery.select.join(',')}`);
         if (exp.subQuery.orderby) {
           const orderParts = exp.subQuery.orderby.map((o: OrderByOption) => `${o.property} ${o.direction}`);
@@ -143,7 +172,8 @@ export function buildODataQuery(query: IstSOS4Query): string {
     });
     params.push(`$expand=${expandParts.join(',')}`);
   }
-
+  
+  // Rest of the function remains unchanged
   if (query.select && query.select.length > 0) {
     params.push(`$select=${query.select.join(',')}`);
   }
@@ -198,6 +228,8 @@ export function buildFilterExpression(filters: FilterCondition[]): string {
         return buildSpatialFilter(filter as SpatialFilter);
       case 'complex':
         return filter.expression;
+      case 'Observation':
+        return buildObservationFilter(filter as ObservationFilter);
       default:
         return '';
     }
@@ -266,7 +298,6 @@ function buildSpatialFilter(filter: SpatialFilter): string {
     }).join('), (');
     geometryString = `geography'POLYGON ((${coordsString}))'`;
   } else if (filter.geometryType === 'LineString') {
-    // Format linestring coordinates as 'LINESTRING (x1 y1, x2 y2, ...)'
     const coordsString = filter.coordinates.map((point: number[]) => `${point[0]} ${point[1]}`).join(', ');
     geometryString = `geography'LINESTRING (${coordsString})'`;
   }
@@ -277,6 +308,20 @@ function buildSpatialFilter(filter: SpatialFilter): string {
     return `${filter.operator}(${filter.field}, ${geometryString})`;
   }
 }
+
+/**
+ * Builds an observation filter expression
+ */
+function buildObservationFilter(filter: ObservationFilter): string {
+  if (filter.operator && filter.value !== null && filter.value !== undefined) {
+    if (filter.field === 'phenomenonTime' || filter.field === 'resultTime') {
+      return `${filter.field} ${filter.operator} ${formatDateTime(filter.value as string)}`;
+    } else {
+      return `${filter.field} ${filter.operator} ${(filter.value)}`;
+    }
+  }
+  return '';
+} 
 
 /**
  * Formats a value for use in a filter expression
@@ -302,7 +347,6 @@ function formatDateTime(dateTime: string): string {
  * Builds the complete API URL for the query
  */
 export function buildApiUrl(baseUrl: string, query: IstSOS4Query): string {
-  
   let url = `${baseUrl}/${query.entity}`;
   
   if (query.entityId !== undefined) {
