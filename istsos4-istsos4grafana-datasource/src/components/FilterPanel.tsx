@@ -144,6 +144,18 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
     }
   };
 
+  const getPossibleFilters = (entityType: EntityType): Array<SelectableValue<FilterType>> => {
+    switch (entityType) {
+      case 'Things':
+        // Only Basic Filter is allowed for Things (for now)
+        return [FILTER_TYPES[0]] as Array<SelectableValue<FilterType>>;
+      case 'Datastreams':
+        return FILTER_TYPES;
+      default:
+        return FILTER_TYPES;
+    }
+  };
+
   const renderTemporalFilter = (filter: TemporalFilter, index: number) => {
     return (
       <div className={styles.filterForm}>
@@ -471,7 +483,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
           <InlineFieldRow>
             <InlineField label="Filter Type" labelWidth={10}>
               <Select
-                options={FILTER_TYPES}
+                options={getPossibleFilters(entityType)}
                 value={newFilterType}
                 onChange={v => setNewFilterType(v.value!)}
                 width={20}

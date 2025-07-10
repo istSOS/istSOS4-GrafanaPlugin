@@ -8,13 +8,15 @@ import {
   FieldType,
   createDataFrame,
   DataSourceApi,
+  DataFrame,
 } from '@grafana/data';
 import { getBackendSrv, getTemplateSrv } from '@grafana/runtime';
 
 import { IstSOS4Query, MyDataSourceOptions, DEFAULT_QUERY, SensorThingsResponse } from './types';
 import { buildApiUrl } from './utils/queryBuilder';
 
-import { convertEPSG2056ToWGS84, formatPhenomenonTime } from './utils/utils'; 
+import { convertEPSG2056ToWGS84 } from './utils/utils'; 
+import { transformDatastreams } from './Transformations/datastream';
 
 export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions> {
   url?: string;
@@ -58,14 +60,14 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
         const baseUrl = `${this.url}${routePath}${path}`;
         const apiUrl = buildApiUrl(baseUrl, query);
         console.log('Executing SensorThings API query:', apiUrl);
-
         const response = await getBackendSrv().datasourceRequest({
           url: apiUrl,
           method: 'GET',
         });        
         
         if (transformResponse) {
-          return this.transformResponse(response, target);
+          const result = this.transformResponse(response, target);
+          return Array.isArray(result) ? result : [result];
         } else {
           const rawData = response.data as SensorThingsResponse;
           return createDataFrame({
@@ -98,8 +100,8 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
         });
       }
     });
-
-    const data = await Promise.all(promises);
+    const results = await Promise.all(promises);
+    const data = results.flat();
     return { data };
   }
 
@@ -180,17 +182,14 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
   }
 
   // Transform SensorThings API response to Grafana data frames
-  private transformResponse(response: any, target: IstSOS4Query) {
+  private transformResponse(response: any, target: IstSOS4Query): DataFrame | DataFrame[] {
     const data = response.data as SensorThingsResponse;
     console.log('SensorThings API Response:', data);
     switch (target.entity) {
       case 'Observations':
         return this.transformObservations(data, target);
       case 'Datastreams':
-        if (target.entityId) {
-          return this.transformSingleDatastream(data, target);
-        }
-        return this.transformDatastreams(data, target);
+        return transformDatastreams(data, target);
       case 'Things':
         if (target.entityId) {
           return this.transformSingleThing(data, target);
@@ -247,128 +246,6 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
       ],
     });
   }
-  // Handle single datastream
-  private transformSingleDatastream(data: any, target: IstSOS4Query) {
-    console.log('Transforming single datastream - entityId:', target.entityId);
-    if (!data) {
-      return createDataFrame({
-        refId: target.refId,
-        name: target.alias || 'Datastream',
-        fields: [],
-      });
-    }
-
-    const datastream = data;
-    console.log('Processing single datastream:', datastream);
-    
-    const unitOfMeasurement = datastream.unitOfMeasurement || {};
-    const unitName = unitOfMeasurement.name || 'Unknown';
-    const unitSymbol = unitOfMeasurement.symbol || '';
-    const unitDefinition = unitOfMeasurement.definition || '';    
-    const hasExpandedObservations = target.expand?.some(exp => exp.entity === 'Observations');
-    
-    if (hasExpandedObservations && datastream.Observations && datastream.Observations.length > 0) {
-      console.log('Creating time series with observations count:', datastream.Observations.length);
-      
-      const timeValues: number[] = [];
-      const resultValues: any[] = [];
-      
-      datastream.Observations.forEach((obs: any) => {
-        if (obs.phenomenonTime) {
-          timeValues.push(new Date(obs.phenomenonTime).getTime());
-          resultValues.push(obs.result);
-        }
-      });
-      
-      return createDataFrame({
-        refId: target.refId,
-        name: target.alias || datastream.name || `${unitName} (${unitSymbol})`,
-        fields: [
-          {
-            name: 'time',
-            type: FieldType.time,
-            values: timeValues,
-          },
-          {
-            name: unitSymbol || 'value',
-            type: FieldType.number,
-            values: resultValues,
-            config: {
-              displayName: `${unitName} (${unitSymbol})`,
-              unit: unitSymbol,
-            },
-          },
-        ],
-        meta: {
-          custom: {
-            datastreamId: datastream['@iot.id'],
-            datastreamName: datastream.name,
-            unitOfMeasurement: {
-              name: unitName,
-              symbol: unitSymbol,
-              definition: unitDefinition,
-            },
-            observationCount: datastream.Observations.length,
-            phenomenonTime: datastream.phenomenonTime,
-            observationType: datastream.observationType,
-            observedArea: datastream.observedArea,
-            properties: datastream.properties,
-          },
-        },
-      });
-    } else {
-      return createDataFrame({
-        refId: target.refId,
-        name: target.alias || datastream.name || `Datastream ${datastream['@iot.id']}`,
-        fields: [
-          {
-            name: 'property',
-            type: FieldType.string,
-            values: [
-              'ID', 
-              'Name', 
-              'Description', 
-              'Unit Name', 
-              'Unit Symbol', 
-              'Unit Definition', 
-              'Observation Type',
-              'Phenomenon Time'
-            ],
-          },
-          {
-            name: 'value',
-            type: FieldType.string,
-            values: [
-              datastream['@iot.id']?.toString() || '',
-              datastream.name || '',
-              datastream.description || '',
-              unitName,
-              unitSymbol,
-              unitDefinition,
-              datastream.observationType || '',
-              formatPhenomenonTime(datastream.phenomenonTime),
-            ],
-          },
-        ],
-        meta: {
-          custom: {
-            datastreamId: datastream['@iot.id'],
-            datastreamName: datastream.name,
-            unitOfMeasurement: {
-              name: unitName,
-              symbol: unitSymbol,
-              definition: unitDefinition,
-            },
-            phenomenonTime: datastream.phenomenonTime,
-            observationType: datastream.observationType,
-            observedArea: datastream.observedArea,
-            properties: datastream.properties,
-          },
-        },
-      });
-    }
-  }
-
   // Handle single Thing
   private transformSingleThing(data: any, target: IstSOS4Query) {
     console.log('Transforming single Thing - entityId:', target.entityId);
@@ -506,92 +383,6 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
     }
   }
 
-  // Handle multiple datastreams
-  private transformDatastreams(data: SensorThingsResponse, target: IstSOS4Query) {
-    console.log('Transforming multiple datastreams');
-    if (!data.value || data.value.length === 0) {
-      return createDataFrame({
-        refId: target.refId,
-        name: target.alias || 'Datastreams',
-        fields: [],
-      });
-    }
-
-    const ids: number[] = [];
-    const names: string[] = [];
-    const descriptions: string[] = [];
-    const units: string[] = [];
-    const unitNames: string[] = [];
-    const unitDefinitions: string[] = [];
-    const phenomenonTimes: string[] = [];
-
-    data.value.forEach((ds: any) => {
-      ids.push(ds['@iot.id']);
-      names.push(ds.name || '');
-      descriptions.push(ds.description || '');
-      
-      const unitOfMeasurement = ds.unitOfMeasurement || {};
-      units.push(unitOfMeasurement.symbol || '');
-      unitNames.push(unitOfMeasurement.name || '');
-      unitDefinitions.push(unitOfMeasurement.definition || '');
-      
-      // Format phenomenon time using utility function
-      phenomenonTimes.push(formatPhenomenonTime(ds.phenomenonTime));
-    });
-
-    const fields = [
-      {
-        name: 'id',
-        type: FieldType.number,
-        values: ids,
-      },
-      {
-        name: 'name',
-        type: FieldType.string,
-        values: names,
-      },
-      {
-        name: 'description',
-        type: FieldType.string,
-        values: descriptions,
-      },
-      {
-        name: 'unit_symbol',
-        type: FieldType.string,
-        values: units,
-      },
-      {
-        name: 'unit_name',
-        type: FieldType.string,
-        values: unitNames,
-      },
-      {
-        name: 'unit_definition',
-        type: FieldType.string,
-        values: unitDefinitions,
-      },
-      {
-        name: 'phenomenon_time',
-        type: FieldType.string,
-        values: phenomenonTimes,
-        config: {
-          displayName: 'Phenomenon Time',
-        },
-      },
-    ];
-
-    return createDataFrame({
-      refId: target.refId,
-      name: target.alias || 'Datastreams',
-      fields,
-      meta: {
-        custom: {
-          expandedEntities: target.expand?.map(exp => exp.entity) || [],
-        },
-      },
-    });
-  }
-
   private transformThings(data: SensorThingsResponse, target: IstSOS4Query) {
     if (!data.value || data.value.length === 0) {
       return createDataFrame({
@@ -682,14 +473,6 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
         values: data.value.map((item: any) => item.name || ''),
       });
     }
-    // if(firstItem['time']!==undefined){
-    //   fields.push({
-    //     name: 'time',
-    //     type: FieldType.time,
-    //     values: data.value.map((item: any) => item.time || ''),
-    //   });
-    // }
-
     if (firstItem.description !== undefined) {
       fields.push({
         name: 'description',

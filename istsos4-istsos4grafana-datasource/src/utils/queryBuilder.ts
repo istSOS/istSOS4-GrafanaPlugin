@@ -97,6 +97,13 @@ export function createQueryBuilder(): QueryBuilder {
  */
 export function buildODataQuery(query: IstSOS4Query): string {
   const params: string[] = [];
+  if (query.entity === 'Datastreams') {
+    query.expand = query.expand || [];
+    if (!query.expand.some(exp => exp.entity === 'Observations')) {
+      query.expand.push({ entity: 'Observations' });
+    }
+  }
+
 
   // Process structured filters if they exist and convert to OData filter string
   if (query.filters && query.filters.length > 0) {
@@ -115,6 +122,8 @@ export function buildODataQuery(query: IstSOS4Query): string {
       let expandStr = exp.entity;      
       if (exp.entity === 'HistoricalLocations') {
         expandStr += '($expand=Locations)';
+        // TODO: Add support for other entities that have a subQuery
+        // else if may be wrong here, Fix it later
       } else if (exp.subQuery) {
         const subParams: string[] = [];
         if (exp.subQuery.filter) subParams.push(`$filter=${encodeURIComponent(exp.subQuery.filter)}`);
@@ -293,6 +302,7 @@ function formatDateTime(dateTime: string): string {
  * Builds the complete API URL for the query
  */
 export function buildApiUrl(baseUrl: string, query: IstSOS4Query): string {
+  
   let url = `${baseUrl}/${query.entity}`;
   
   if (query.entityId !== undefined) {

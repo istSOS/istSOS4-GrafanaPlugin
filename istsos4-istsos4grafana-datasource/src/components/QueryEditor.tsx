@@ -36,7 +36,18 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
   };
 
   const onEntityChange = (value: SelectableValue<EntityType>) => {
-    onChange({ ...currentQuery, entity: value.value!, entityId: undefined });
+    const newQuery = { ...currentQuery, entity: value.value!, entityId: undefined };
+    
+    // Auto Expanstions when the Entity is changed
+    // Currently Datastreams only
+    if (value.value === 'Datastreams') {
+      newQuery.expand = newQuery.expand || [];
+      if (!newQuery.expand.some(exp => exp.entity === 'Observations')) {
+        newQuery.expand.push({ entity: 'Observations' });
+      }
+    }
+    
+    onChange(newQuery);
   };
 
   const onEntityIdChange = (event: ChangeEvent<HTMLInputElement>) => {

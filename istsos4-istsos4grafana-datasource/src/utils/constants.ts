@@ -36,11 +36,9 @@ export const COMMON_FIELDS: Array<SelectableValue<FilterField>> = [
 ];
 
 export const OBSERVATION_FIELDS: Array<SelectableValue<FilterField>> = [
-  ...COMMON_FIELDS,
   { label: 'Result', value: 'result', description: 'Observation result value' },
   { label: 'Phenomenon Time', value: 'phenomenonTime', description: 'Time of phenomenon' },
   { label: 'Result Time', value: 'resultTime', description: 'Time of result' },
-  { label: 'Feature of Interest', value: 'FeatureOfInterest/@iot.id', description: 'Feature of interest ID' },
 ];
 
 export const MEASUREMENT_FIELDS: Array<SelectableValue<FilterField>> = [
@@ -64,6 +62,7 @@ export const FILTER_TYPES: Array<SelectableValue<FilterType>> = [
   { label: 'Measurement', value: 'measurement', description: 'Filter by measurement values or units' },
   { label: 'Spatial', value: 'spatial', description: 'Filter by geographic location' },
   { label: 'Complex', value: 'complex', description: 'Custom OData filter expression' },
+  { label:'Observation', value: 'Observation', description: 'Filter by observation properties' },
 ];
 
 export const COMPARISON_OPERATORS: Array<SelectableValue<ComparisonOperator>> = [

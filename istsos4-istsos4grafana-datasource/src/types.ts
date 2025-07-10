@@ -97,7 +97,8 @@ export type FilterType =
   | 'basic' 
   | 'measurement' 
   | 'spatial' 
-  | 'complex';
+  | 'complex'
+  | 'Observation';
 
 export type FilterField = 
   | 'name'
