@@ -53,6 +53,11 @@ export const TEMPORAL_FIELDS: Array<SelectableValue<FilterField>> = [
   { label: 'Result Time', value: 'resultTime', description: 'Time of result' },
 ];
 
+export const SPATIAL_FIELDS: Array<SelectableValue<FilterField>> = [
+  { label: 'Observed Area', value: 'observedArea', description: 'Observed area' },
+  { label: 'Location', value: 'location', description: 'Location' },
+];
+
 export const FILTER_TYPES: Array<SelectableValue<FilterType>> = [
   { label: 'Basic', value: 'basic', description: 'Filter by basic properties like name or ID' },
   { label: 'Temporal', value: 'temporal', description: 'Filter by time-related properties' },

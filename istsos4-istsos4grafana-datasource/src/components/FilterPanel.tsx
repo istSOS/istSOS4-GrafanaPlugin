@@ -14,7 +14,7 @@ import {
   ComplexFilter,
   EntityType,
 } from '../types';
-import { COMMON_FIELDS, OBSERVATION_FIELDS, FILTER_TYPES, COMPARISON_OPERATORS, STRING_OPERATORS, SPATIAL_OPERATORS, TEMPORAL_FUNCTIONS, GEOMETRY_TYPES, MEASUREMENT_FIELDS, TEMPORAL_FIELDS } from '../utils/constants';
+import { COMMON_FIELDS, OBSERVATION_FIELDS, FILTER_TYPES, COMPARISON_OPERATORS, STRING_OPERATORS, SPATIAL_OPERATORS, TEMPORAL_FUNCTIONS, GEOMETRY_TYPES, MEASUREMENT_FIELDS, TEMPORAL_FIELDS, SPATIAL_FIELDS } from '../utils/constants';
 
 interface FilterPanelProps {
   entityType: EntityType;
@@ -27,14 +27,20 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
   const [showAddFilter, setShowAddFilter] = useState(false);
   const [newFilterType, setNewFilterType] = useState<FilterType>('basic');
   const getFieldOptions = (): Array<SelectableValue<FilterField>> => {
+    if (newFilterType === 'basic') {
+      return COMMON_FIELDS;
+    }
     switch (entityType) {
       case 'Observations':
         return OBSERVATION_FIELDS;
-
       case 'Datastreams':
         switch (newFilterType) {
           case 'measurement':
             return MEASUREMENT_FIELDS;
+          case 'temporal':
+            return TEMPORAL_FIELDS;
+          case 'spatial':
+            return  SPATIAL_FIELDS;
           default:
             return COMMON_FIELDS;
         }
@@ -144,7 +150,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
         <InlineFieldRow>
           <InlineField label="Field" labelWidth={10}>
             <Select
-              options={TEMPORAL_FIELDS}
+              options={getFieldOptions()}
               value={filter.field}
               onChange={v => updateFilter(index, { field: v.value! })}
               width={20}
