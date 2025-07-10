@@ -1,4 +1,4 @@
-import { IstSOS4Query, EntityType, QueryBuilder as MyQueryBuilder, OrderByOption } from '../types';
+import { IstSOS4Query, EntityType, QueryBuilder as MyQueryBuilder, OrderByOption, FilterCondition, TemporalFilter, SpatialFilter } from '../types';
 
 /*
 This file contains the Query Builder class.
@@ -98,8 +98,15 @@ export function createQueryBuilder(): QueryBuilder {
 export function buildODataQuery(query: IstSOS4Query): string {
   const params: string[] = [];
 
-  
-  if (query.filter) {
+  // Process structured filters if they exist and convert to OData filter string
+  if (query.filters && query.filters.length > 0) {
+    const filterExpression = buildFilterExpression(query.filters);
+    if (filterExpression) {
+      params.push(`$filter=${encodeURIComponent(filterExpression)}`);
+    }
+  } 
+  // Otherwise use the raw filter string if provided
+  else if (query.filter) {
     params.push(`$filter=${encodeURIComponent(query.filter)}`);
   }
 
@@ -166,6 +173,123 @@ export function buildODataQuery(query: IstSOS4Query): string {
 }
 
 /**
+ * Builds a filter expression from structured filter conditions
+ */
+export function buildFilterExpression(filters: FilterCondition[]): string {
+
+  const expressions = filters.map(filter => {
+    switch (filter.type) {
+      case 'temporal':
+        return buildTemporalFilter(filter as TemporalFilter);
+      case 'basic':
+        return buildBasicFilter(filter);
+      case 'measurement':
+        return buildMeasurementFilter(filter);
+      case 'spatial':
+        return buildSpatialFilter(filter as SpatialFilter);
+      case 'complex':
+        return filter.expression;
+      default:
+        return '';
+    }
+  }).filter(expr => expr !== '');
+
+  return expressions.join(' and ');
+}
+
+/**
+ * Builds a temporal filter expression
+ */
+function buildTemporalFilter(filter: TemporalFilter): string {
+  if (filter.startDate && filter.endDate) {
+    return `${filter.field} ge ${formatDateTime(filter.startDate)} and ${filter.field} le ${formatDateTime(filter.endDate)}`;
+  } else if (filter.operator && filter.value !== null && filter.value !== undefined) {
+    if (['year', 'month', 'day', 'hour', 'minute', 'second'].includes(filter.operator)) {
+      return `${filter.operator}(${filter.field}) eq ${filter.value}`;
+    } else {
+      return `${filter.field} ${filter.operator} ${formatValue(filter.value)}`;
+    }
+  }
+  return '';
+}
+
+/**
+ * Builds a basic filter expression (name, id, description)
+ */
+function buildBasicFilter(filter: FilterCondition): string {
+  if (filter.operator && filter.value !== null && filter.value !== undefined) {
+    if (['startswith', 'endswith'].includes(filter.operator)) {
+      return `${filter.operator}(${filter.field},'${String(filter.value)}')`;
+    } else if (filter.operator === 'substringof') {
+      return `substringof('${String(filter.value)}',${filter.field})`;
+    } else {
+      return `${filter.field} ${filter.operator} ${formatValue(filter.value)}`;
+    }
+  }
+  return '';
+}
+
+/**
+ * Builds a measurement filter expression (unitOfMeasurement, result)
+ */
+function buildMeasurementFilter(filter: FilterCondition): string {
+  if (filter.operator && filter.value !== null && filter.value !== undefined) {
+    return `${filter.field} ${filter.operator} ${formatValue(filter.value)}`;
+  }
+  return '';
+}
+
+/**
+ * Builds a spatial filter expression
+ */
+function buildSpatialFilter(filter: SpatialFilter): string {
+  if (!filter.operator || !filter.geometryType || !filter.coordinates) {
+    return '';
+  }
+
+  let geometryString = '';
+  if (filter.geometryType === 'Point') {
+    geometryString = `geography'POINT (${filter.coordinates[0]} ${filter.coordinates[1]})'`;
+  } else if (filter.geometryType === 'Polygon') {
+    // Format polygon coordinates as 'POLYGON ((x1 y1, x2 y2, ...))'
+    const coordsString = filter.coordinates.map((ring: number[][]) => {
+      return ring.map((point: number[]) => `${point[0]} ${point[1]}`).join(', ');
+    }).join('), (');
+    geometryString = `geography'POLYGON ((${coordsString}))'`;
+  } else if (filter.geometryType === 'LineString') {
+    // Format linestring coordinates as 'LINESTRING (x1 y1, x2 y2, ...)'
+    const coordsString = filter.coordinates.map((point: number[]) => `${point[0]} ${point[1]}`).join(', ');
+    geometryString = `geography'LINESTRING (${coordsString})'`;
+  }
+
+  if (filter.operator === 'st_distance' && typeof filter.value === 'number') {
+    return `${filter.operator}(${filter.field}, ${geometryString}) le ${filter.value}`;
+  } else {
+    return `${filter.operator}(${filter.field}, ${geometryString})`;
+  }
+}
+
+/**
+ * Formats a value for use in a filter expression
+ */
+function formatValue(value: any): string {
+  if (typeof value === 'string') {
+    return `'${value}'`;
+  } else if (value instanceof Date) {
+    return formatDateTime(value.toISOString());
+  } else {
+    return String(value);
+  }
+}
+
+/**
+ * Formats a date-time string for use in a filter expression
+ */
+function formatDateTime(dateTime: string): string {
+  return `'${dateTime}'`;
+}
+
+/**
  * Builds the complete API URL for the query
  */
 export function buildApiUrl(baseUrl: string, query: IstSOS4Query): string {
@@ -195,7 +319,7 @@ export const FilterExpressions = {
   // String functions
   startsWith: (property: string, value: string) => `startswith(${property},'${value}')`,
   endsWith: (property: string, value: string) => `endswith(${property},'${value}')`,
-  contains: (property: string, value: string) => `contains(${property},'${value}')`,
+  substringof: (property: string, value: string) => `substringof('${value}',${property})`,
   
   // Date/time functions
   year: (property: string, value: number) => `year(${property}) eq ${value}`,

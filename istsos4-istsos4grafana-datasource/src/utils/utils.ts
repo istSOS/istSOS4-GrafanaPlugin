@@ -96,5 +96,8 @@ export const getStyles = (theme: GrafanaTheme2) => {
       width: 100%;
       box-sizing: border-box;
     `,
+    filterButton: css`
+      margin-top: ${theme.spacing(1)};
+    `,
   };
 };

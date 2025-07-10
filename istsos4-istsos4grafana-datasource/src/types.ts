@@ -12,6 +12,7 @@ export interface IstSOS4Query extends DataQuery {
   
   // Query parameters
   filter?: string;
+  filters?: FilterCondition[];
   expand?: ExpandOption[];
   select?: string[];
   orderby?: OrderByOption[];
@@ -42,12 +43,15 @@ export const DEFAULT_QUERY: Partial<IstSOS4Query> = {
   entity: 'Things',
   count: false,
   resultFormat: 'default',
+  filters: [],
 };
+
 export interface Entity {
   '@iot.id': number;
   name?: string;
   description?: string;
 }
+
 // Entity types
 export type EntityType = 
   | 'Things'
@@ -84,9 +88,76 @@ export type ResultFormat = 'default' | 'dataArray';
 export type FilterOperator = 
   | 'eq' | 'ne' | 'gt' | 'ge' | 'lt' | 'le'
   | 'and' | 'or' | 'not'
-  | 'startswith' | 'endswith' | 'contains'
+  | 'startswith' | 'endswith' | 'substringof'
   | 'year' | 'month' | 'day' | 'hour' | 'minute' | 'second'
   | 'st_within' | 'st_intersects' | 'st_distance';
+
+export type FilterType = 
+  | 'temporal' 
+  | 'basic' 
+  | 'measurement' 
+  | 'spatial' 
+  | 'complex';
+
+export type FilterField = 
+  | 'name'
+  | '@iot.id'
+  | 'description'
+  | 'resultTime'
+  | 'phenomenonTime'
+  | 'unitOfMeasurement/name'
+  | 'unitOfMeasurement/symbol'
+  | 'observedArea'
+  | 'result'
+  | 'observationType'
+  | 'properties'
+  | string; 
+
+export type ComparisonOperator = 'eq' | 'ne' | 'gt' | 'ge' | 'lt' | 'le';
+export type StringOperator = 'startswith' | 'endswith' | 'substringof';
+export type SpatialOperator = 'st_within' | 'st_intersects' | 'st_distance' | 'geo.distance' | 'geo.length' | 'geo.intersects';
+export type TemporalFunction = 'year' | 'month' | 'day' | 'hour' | 'minute' | 'second';
+
+export interface FilterCondition {
+  id: string;
+  type: FilterType;
+  field: FilterField;
+  operator: ComparisonOperator | StringOperator | SpatialOperator | TemporalFunction;
+  value: string | number | boolean | object | null;
+  expression?: string; // For complex filters
+}
+
+export interface TemporalFilter extends FilterCondition {
+  type: 'temporal';
+  field: 'resultTime' | 'phenomenonTime';
+  startDate?: string;
+  endDate?: string;
+}
+
+export interface BasicFilter extends FilterCondition {
+  type: 'basic';
+  field: 'name' | '@iot.id' | 'description' | string;
+  operator: ComparisonOperator | StringOperator;
+}
+
+export interface MeasurementFilter extends FilterCondition {
+  type: 'measurement';
+  field: 'unitOfMeasurement/name' | 'unitOfMeasurement/symbol' | 'result';
+  operator: ComparisonOperator;
+}
+
+export interface SpatialFilter extends FilterCondition {
+  type: 'spatial';
+  field: 'observedArea' | 'location';
+  operator: SpatialOperator;
+  geometryType: 'Point' | 'Polygon' | 'LineString';
+  coordinates: any;
+}
+
+export interface ComplexFilter extends FilterCondition {
+  type: 'complex';
+  expression: string;
+}
 
 // Query builder interface
 export interface QueryBuilder {
