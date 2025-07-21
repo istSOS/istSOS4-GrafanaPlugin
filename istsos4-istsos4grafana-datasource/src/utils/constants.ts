@@ -1,5 +1,5 @@
 import { SelectableValue } from "@grafana/data";
-import { EntityType, FilterField, FilterType, ComparisonOperator, StringOperator, SpatialOperator, TemporalFunction } from "../types";
+import { EntityType, FilterField, FilterType, ComparisonOperator, StringOperator, SpatialOperator, TemporalFunction, Variable } from "../types";
 export const ENTITY_OPTIONS: Array<SelectableValue<EntityType>> = [
     { label: 'Things', value: 'Things', description: 'Physical or virtual objects' },
     { label: 'Locations', value: 'Locations', description: 'Geographic positions' },
@@ -83,7 +83,7 @@ export const STRING_OPERATORS: Array<SelectableValue<StringOperator>> = [
 export const SPATIAL_OPERATORS: Array<SelectableValue<SpatialOperator>> = [
   { label: 'Within', value: 'st_within', description: 'Location is within the specified geometry' },
   { label: 'Intersects', value: 'st_intersects', description: 'Location intersects with the specified geometry' },
-  { label: 'Distance', value: 'st_distance', description: 'Distance between location and specified point' },
+  // { label: 'Distance', value: 'st_distance', description: 'Distance between location and specified point' },
 ];
 
 export const TEMPORAL_FUNCTIONS: Array<SelectableValue<TemporalFunction>> = [
@@ -100,5 +100,13 @@ export const GEOMETRY_TYPES: Array<SelectableValue<string>> = [
   { label: 'Polygon', value: 'Polygon', description: 'A polygon defined by points' },
   { label: 'LineString', value: 'LineString', description: 'A line defined by points' },
 ]; 
+
+export const VARIABLE_OPTIONS: Array<SelectableValue<Variable>> = [
+  { label: 'Things', value: { name: 'Things', entity: 'Things' }, description: 'Physical or virtual objects' },
+  { label: 'Locations', value: { name: 'Locations', entity: 'Locations' }, description: 'Geographic positions' },
+  { label: 'Sensors', value: { name: 'Sensors', entity: 'Sensors' }, description: 'Measurement instruments' },
+  { label: 'Observed Properties', value: { name: 'ObservedProperties', entity: 'ObservedProperties' }, description: 'What is being measured' },
+  { label: 'Datastreams', value: { name: 'Datastreams', entity: 'Datastreams' }, description: 'Links Things, Sensors, and ObservedProperties' },
+];
 
 

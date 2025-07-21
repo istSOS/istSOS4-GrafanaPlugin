@@ -1,17 +1,14 @@
 import React, { ChangeEvent, useState } from 'react';
 import { InlineField, Input, Select, Stack, InlineFieldRow, FieldSet, MultiSelect, Button, useStyles2, Collapse } from '@grafana/ui';
-import { QueryEditorProps, SelectableValue, GrafanaTheme2 } from '@grafana/data';
-import { css } from '@emotion/css';
+import { QueryEditorProps, SelectableValue } from '@grafana/data';
 import { DataSource } from '../datasource';
-import { MyDataSourceOptions, IstSOS4Query, EntityType, ExpandOption, FilterCondition } from '../types';
+import { MyDataSourceOptions, IstSOS4Query, EntityType, ExpandOption, FilterCondition, Variable } from '../types';
 import { buildODataQuery } from '../utils/queryBuilder';
 import { FilterPanel } from './FilterPanel';
-import { ENTITY_OPTIONS, THINGS_EXPAND_OPTIONS, DATASTREAMS_EXPAND_OPTIONS, RESULT_FORMAT_OPTIONS } from '../utils/constants';
+import { ENTITY_OPTIONS, THINGS_EXPAND_OPTIONS, DATASTREAMS_EXPAND_OPTIONS, RESULT_FORMAT_OPTIONS, VARIABLE_OPTIONS } from '../utils/constants';
 import { getStyles } from '../utils/utils';
 
 type Props = QueryEditorProps<DataSource, IstSOS4Query, MyDataSourceOptions>;
-
-
 
 interface Entity {
   '@iot.id': number;
@@ -33,6 +30,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     count: query.count || false,
     resultFormat: query.resultFormat || 'default',
     filters: query.filters || [],
+    variable: query.variable || undefined, 
   };
 
   const onEntityChange = (value: SelectableValue<EntityType>) => {
@@ -132,7 +130,17 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
 
   const previewQuery = () => {
     const queryString = buildODataQuery(currentQuery);
-    const fullUrl = `/${currentQuery.entity}${currentQuery.entityId ? `(${currentQuery.entityId})` : ''}${queryString}`;
+    let fullUrl = `/${currentQuery.entity}`;    
+    if (currentQuery.variable && currentQuery.variable.name) {
+      if (currentQuery.variable.entity !== currentQuery.entity) {
+        fullUrl = `/${currentQuery.variable.entity}(\$${currentQuery.variable.name})/${currentQuery.entity}`;
+      } else {
+        fullUrl += `(\$${currentQuery.variable.name})`;
+      }
+    } else if (currentQuery.entityId !== undefined) {
+      fullUrl += `(${currentQuery.entityId})`;
+    }
+    fullUrl += queryString;
     return fullUrl;
   };
 
@@ -191,6 +199,43 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     
     return id.includes(query) || name.includes(query) || description.includes(query);
   });
+
+  const onVariableEntityChange = (value: SelectableValue<EntityType>) => {
+    if (value.value !== undefined) {
+      onChange({ 
+        ...currentQuery, 
+        variable: { 
+          name: currentQuery.variable?.name ?? '', 
+          entity: value.value, 
+          entityId: currentQuery.variable?.entityId 
+        } 
+      });
+    }
+  };
+
+  const onVariableNameChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const variableName = event.target.value;
+    onChange({ 
+      ...currentQuery, 
+      variable: { 
+        name: variableName, 
+        entity: currentQuery.variable?.entity || 'Things', 
+        entityId: currentQuery.variable?.entityId 
+      } 
+    });
+  };
+
+  const onVariableEntityIdChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const entityId = event.target.value ? parseInt(event.target.value, 10) : undefined;
+    onChange({ 
+      ...currentQuery, 
+      variable: { 
+        name: currentQuery.variable?.name ?? '', 
+        entity: currentQuery.variable?.entity || 'Things', 
+        entityId: entityId
+      } 
+    });
+  };
 
   return (
     <div>
@@ -366,6 +411,48 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
             </div>
           )}
         </FieldSet>
+        <FieldSet label="Variables">
+          <InlineFieldRow>
+            <InlineField label="Variable Name" labelWidth={12} tooltip="Enter the name of a dashboard variable (without $ prefix)">
+              <Input 
+                value={currentQuery.variable?.name || ''} 
+                onChange={onVariableNameChange} 
+                width={20} 
+                type="text" 
+                placeholder="e.g., thing_id" 
+              />
+            </InlineField>
+            <InlineField label="Variable Entity" labelWidth={12} tooltip="Select the entity type for the variable">
+              <Select 
+                options={ENTITY_OPTIONS} 
+                value={ENTITY_OPTIONS.find(opt => opt.value === currentQuery.variable?.entity) || null} 
+                onChange={onVariableEntityChange} 
+                width={20} 
+              />
+            </InlineField>
+          </InlineFieldRow>
+          <InlineFieldRow>
+            <InlineField label="Variable Entity ID" labelWidth={12} tooltip="Optional: Set a specific entity ID for the variable (overrides dashboard variable)">
+              <Input 
+                value={currentQuery.variable?.entityId || ''} 
+                onChange={onVariableEntityIdChange} 
+                width={20} 
+                type="number" 
+                placeholder="e.g., 123" 
+              />
+            </InlineField>
+          </InlineFieldRow>
+          {currentQuery.variable?.name && (
+            <InlineFieldRow>
+              <InlineField label="Variable Usage" labelWidth={12}>
+                <div style={{ padding: '8px', backgroundColor: '#f5f5f5', borderRadius: '4px', fontSize: '12px' }}>
+                  Variable <code>${currentQuery.variable.name}</code> will be applied to {currentQuery.variable.entity} entity.
+                  {currentQuery.variable.entityId && ` Default ID: ${currentQuery.variable.entityId}`}
+                </div>
+              </InlineField>
+            </InlineFieldRow>
+          )}
+        </FieldSet>
       </Stack>
       <div style={{ width: '100%' }}>
         <FieldSet label="Query Preview">
@@ -377,5 +464,3 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     </div>
   );
 }
-
-

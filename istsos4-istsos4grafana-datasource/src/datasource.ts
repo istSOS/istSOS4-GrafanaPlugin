@@ -9,6 +9,8 @@ import {
   createDataFrame,
   DataSourceApi,
   DataFrame,
+  MetricFindValue,
+  Field,
 } from '@grafana/data';
 import { getBackendSrv, getTemplateSrv } from '@grafana/runtime';
 
@@ -31,11 +33,42 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
   }
 
   applyTemplateVariables(query: IstSOS4Query, scopedVars: ScopedVars) {
-    return {
+    let modifiedQuery = {
       ...query,
       filter: query.filter ? getTemplateSrv().replace(query.filter, scopedVars) : query.filter,
       alias: query.alias ? getTemplateSrv().replace(query.alias, scopedVars) : query.alias,
     };
+
+    // Handle variable substitution
+    if (query.variable && query.variable.name) {
+      const variableValue = getTemplateSrv().replace(`$${query.variable.name}`, scopedVars);
+      
+      console.log(`Variable entity: ${query.variable.entity}`);
+      console.log(`Query entity: ${query.entity}`);
+      if (!variableValue || variableValue === `$${query.variable.name}`) {
+        console.log(`Variable ${query.variable.name} not found or has no value`);
+        return modifiedQuery;
+      }      
+      if (query.variable.entity === query.entity) {
+        const numericValue = parseInt(variableValue, 10);
+        if (!isNaN(numericValue)) {
+          modifiedQuery.entityId = numericValue;
+          console.log(`Applied variable ${query.variable.name} as entityId: ${numericValue}`);
+        }
+      }
+      else {
+        modifiedQuery.filters?.push({
+          id: 'variableFilter',
+          type: 'variable',
+          field: 'id',
+          operator: 'eq',
+          value: variableValue,
+          entity: query.variable.entity.replace('s', '') as any,
+        });
+      }
+    } 
+
+    return modifiedQuery;
   }
 
   filterQuery(query: IstSOS4Query): boolean {
@@ -54,7 +87,9 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
       }
 
       try {
-        const query = this.applyTemplateVariables(target, options.scopedVars);        
+        const query = this.applyTemplateVariables(target, options.scopedVars);
+        console.log('Query after variable substitution:', query);
+        
         const routePath = '/sensorapi';
         const path = this.instanceSettings.jsonData.path || '';
         const baseUrl = `${this.url}${routePath}${path}`;
@@ -137,7 +172,7 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
       try {
         const routePath = '/sensorapi';
         const path = config.path || '';
-        const testUrl = `${this.url}${routePath}${path}`;
+        const testUrl = `${this.url}${routePath}${path}/Things`;
 
         const response = await getBackendSrv().datasourceRequest({
           url: testUrl,
@@ -181,6 +216,84 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
     }
   }
 
+  async metricFindQuery(query: string, options?: any): Promise<MetricFindValue[]> {
+    console.log('Metric find query:', query);
+    const replaced = getTemplateSrv().replace(query, options?.scopedVars);
+    
+    try {
+      let entity = replaced;
+      let filter = '';
+      let select = ['name', 'description', '@iot.id'];
+      let top = 100;
+      
+      if (replaced.includes('?')) {
+        const [entityPart, paramsPart] = replaced.split('?');
+        entity = entityPart;
+        
+        const params = new URLSearchParams(paramsPart);
+        
+        if (params.has('$filter')) {
+          filter = params.get('$filter') || '';
+        }
+        
+        if (params.has('$select')) {
+          const selectParam = params.get('$select');
+          if (selectParam) {
+            select = selectParam.split(',').map(s => s.trim());
+          }
+        }
+        
+        if (params.has('$top')) {
+          const topParam = params.get('$top');
+          if (topParam) {
+            top = parseInt(topParam, 10);
+          }
+        }
+      }
+      
+      const queryObj: IstSOS4Query = {
+        refId: 'variables',
+        entity: entity as any, 
+        filter,
+        select,
+        top,
+      };
+      
+      const routePath = '/sensorapi';
+      const path = this.instanceSettings.jsonData.path || '';
+      const baseUrl = `${this.url}${routePath}${path}`;
+      const apiUrl = buildApiUrl(baseUrl, queryObj);
+      console.log('Executing SensorThings API query for variables:', apiUrl);
+      
+      const response = await getBackendSrv().datasourceRequest({
+        url: apiUrl,
+        method: 'GET',
+      });
+      
+      const responseData = response.data as any;
+      
+      if (!responseData || !responseData.value || !Array.isArray(responseData.value)) {
+        return [];
+      }
+      
+      const entities = responseData.value as any[];
+      
+      return entities.map((entity: any) => {
+        let text = entity.name || entity['@iot.id']?.toString() || '';
+        let value = entity['@iot.id']?.toString() || '';
+        
+        if (queryObj.entity === 'Observations') {
+          text = entity.resultTime || entity.phenomenonTime || entity['@iot.id']?.toString() || '';
+        }
+        
+        return { text, value };
+      });
+    } catch (error) {
+      console.error('Error in metricFindQuery:', error);
+      return [];
+    }
+  }
+
   // Transform SensorThings API response to Grafana data frames
   private transformResponse(response: any, target: IstSOS4Query): DataFrame | DataFrame[] {
     const data = response.data as SensorThingsResponse;
@@ -192,6 +305,7 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
         return transformDatastreams(data, target);
       case 'Things':
         if (target.entityId) {
+          console.log('Transforming single Thing with entityId:', target.entityId);
           return this.transformSingleThing(data, target);
         }
         return this.transformThings(data, target);

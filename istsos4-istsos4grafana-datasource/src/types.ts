@@ -9,7 +9,7 @@ export interface IstSOS4Query extends DataQuery {
   // Entity selection
   entity: EntityType;
   entityId?: number;
-  
+  variable?: Variable;
   // Query parameters
   filter?: string;
   filters?: FilterCondition[];
@@ -31,6 +31,12 @@ export interface IstSOS4Query extends DataQuery {
   // Grafana-specific
   alias?: string;
   hide?: boolean;
+}
+// Variable interface (it basically filters)
+export interface Variable {
+  name: string;
+  entity: EntityType;
+  entityId?: number;
 }
 
 // Legacy query interface for backward compatibility
@@ -98,7 +104,8 @@ export type FilterType =
   | 'measurement' 
   | 'spatial' 
   | 'complex'
-  | 'Observation';
+  | 'Observation'
+  | 'variable';
 
 export type FilterField = 
   | 'name'
@@ -126,6 +133,8 @@ export interface FilterCondition {
   operator: ComparisonOperator | StringOperator | SpatialOperator | TemporalFunction;
   value: string | number | boolean | object | null;
   expression?: string; // For complex filters
+  // for variable filter
+  entity?: EntityType;
 }
 
 export interface TemporalFilter extends FilterCondition {
@@ -163,6 +172,13 @@ export interface ComplexFilter extends FilterCondition {
 export interface ObservationFilter extends FilterCondition {
   type: 'Observation';
   field: 'result' | 'phenomenonTime' | 'resultTime';
+  operator: ComparisonOperator;
+}
+
+export interface VariableFilter extends FilterCondition {
+  type: 'variable';
+  field: 'id';
+  entity: EntityType;
   operator: ComparisonOperator;
 }
 
@@ -315,5 +331,3 @@ export interface MySecureJsonData {
   oauth2Password?: string;
   oauth2ClientSecret?: string;
 }
-
-

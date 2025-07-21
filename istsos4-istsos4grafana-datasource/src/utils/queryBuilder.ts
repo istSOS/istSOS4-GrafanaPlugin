@@ -1,4 +1,4 @@
-import { IstSOS4Query, EntityType, QueryBuilder as MyQueryBuilder, OrderByOption, FilterCondition, TemporalFilter, SpatialFilter, ObservationFilter } from '../types';
+import { IstSOS4Query, EntityType, QueryBuilder as MyQueryBuilder, OrderByOption, FilterCondition, TemporalFilter, SpatialFilter, ObservationFilter,VariableFilter } from '../types';
 
 /*
 This file contains the Query Builder class.
@@ -145,7 +145,7 @@ export function buildODataQuery(query: IstSOS4Query): string {
   else if (query.filter) {
     params.push(`$filter=${encodeURIComponent(query.filter)}`);
   }
-
+  
   if (query.expand && query.expand.length > 0) {
     const expandParts = query.expand.map(exp => {
       let expandStr = exp.entity;      
@@ -230,6 +230,8 @@ export function buildFilterExpression(filters: FilterCondition[]): string {
         return filter.expression;
       case 'Observation':
         return buildObservationFilter(filter as ObservationFilter);
+      case 'variable':
+        return buildVariableFilter(filter as VariableFilter);
       default:
         return '';
     }
@@ -280,6 +282,12 @@ function buildMeasurementFilter(filter: FilterCondition): string {
   return '';
 }
 
+function buildVariableFilter(filter: VariableFilter): string {
+  if (filter.operator && filter.value !== null && filter.value !== undefined) {
+    return `${filter.entity}/${filter.field} ${filter.operator} ${formatValue(filter.value)}`;
+  }
+  return '';
+}
 /**
  * Builds a spatial filter expression
  */
@@ -296,6 +304,7 @@ function buildSpatialFilter(filter: SpatialFilter): string {
     const coordsString = filter.coordinates.map((ring: number[][]) => {
       return ring.map((point: number[]) => `${point[0]} ${point[1]}`).join(', ');
     }).join('), (');
+    console.log('coordsString', coordsString);
     geometryString = `geography'POLYGON ((${coordsString}))'`;
   } else if (filter.geometryType === 'LineString') {
     const coordsString = filter.coordinates.map((point: number[]) => `${point[0]} ${point[1]}`).join(', ');
