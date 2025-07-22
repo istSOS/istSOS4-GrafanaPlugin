@@ -27,15 +27,17 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
   const styles = useStyles2(getStyles);
   const [showAddFilter, setShowAddFilter] = useState(false);
   const [newFilterType, setNewFilterType] = useState<FilterType>('basic');
-  const getFieldOptions = (): Array<SelectableValue<FilterField>> => {
-    if (newFilterType === 'basic') {
+  const getFieldOptions = (filterType?: FilterType): Array<SelectableValue<FilterField>> => {
+    const typeToCheck = filterType || newFilterType;
+    
+    if (typeToCheck === 'basic') {
       return COMMON_FIELDS;
     }
     switch (entityType) {
       case 'Observations':
         return OBSERVATION_FIELDS;
       case 'Datastreams':
-        switch (newFilterType) {
+        switch (typeToCheck) {
           case 'measurement':
             return MEASUREMENT_FIELDS;
           case 'temporal':
@@ -105,16 +107,13 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
     setShowAddFilter(false);
   };
 
-  const updateFilter = (index: number, updates: Partial<FilterCondition>) => {
-    const updatedFilters = [...filters];
-    updatedFilters[index] = { ...updatedFilters[index], ...updates };
-    
+  const updateFilter = (id: string, updates: Partial<FilterCondition>) => {
+    const updatedFilters = filters.map(filter => filter.id === id ? { ...filter, ...updates } : filter);
     onFiltersChange(updatedFilters);
   };
 
-  const removeFilter = (index: number) => {
-    const updatedFilters = [...filters];
-    updatedFilters.splice(index, 1);
+  const removeFilter = (id: string) => {
+    const updatedFilters = filters.filter(filter => filter.id !== id);
     onFiltersChange(updatedFilters);
   };
 
@@ -174,9 +173,9 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
         <InlineFieldRow>
           <InlineField label="Field" labelWidth={10}>
             <Select
-              options={getFieldOptions()}
+              options={getFieldOptions(filter.type)}
               value={filter.field}
-              onChange={v => updateFilter(index, { field: v.value! })}
+              onChange={v => updateFilter(filter.id, { field: v.value! })}
               width={20}
             />
           </InlineField>
@@ -194,13 +193,13 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
                      filter.operator === 'lt' || filter.operator === 'le' ? 'range' : 'function'}
               onChange={v => {
                 if (v.value === 'range') {
-                  updateFilter(index, { 
+                  updateFilter(filter.id, { 
                     operator: 'ge',
                     startDate: filter.startDate || new Date().toISOString(),
                     endDate: filter.endDate || new Date().toISOString()
                   } as Partial<TemporalFilter>);
                 } else {
-                  updateFilter(index, { 
+                  updateFilter(filter.id, { 
                     operator: 'year',
                     value: new Date().getFullYear()
                   } as Partial<TemporalFilter>);
@@ -222,7 +221,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
                   value={filter.startDate ? new Date(filter.startDate).toISOString().slice(0, 16) : ''}
                   onChange={e => {
                     const date = new Date(e.currentTarget.value);
-                    updateFilter(index, { startDate: date.toISOString() } as Partial<TemporalFilter>);
+                    updateFilter(filter.id, { startDate: date.toISOString() } as Partial<TemporalFilter>);
                   }}
                   width={20}
                 />
@@ -236,7 +235,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
                   value={filter.endDate ? new Date(filter.endDate).toISOString().slice(0, 16) : ''}
                   onChange={e => {
                     const date = new Date(e.currentTarget.value);
-                    updateFilter(index, { endDate: date.toISOString() } as Partial<TemporalFilter>);
+                    updateFilter(filter.id, { endDate: date.toISOString() } as Partial<TemporalFilter>);
                   }}
                   width={20}
                 />
@@ -254,7 +253,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
                 <Select
                   options={TEMPORAL_FUNCTIONS}
                   value={filter.operator}
-                  onChange={v => updateFilter(index, { operator: v.value! })}
+                  onChange={v => updateFilter(filter.id, { operator: v.value! })}
                   width={20}
                 />
               </InlineField>
@@ -265,7 +264,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
                 <Input
                   type="number"
                   value={filter.value as number}
-                  onChange={e => updateFilter(index, { value: parseInt(e.currentTarget.value, 10) })}
+                  onChange={e => updateFilter(filter.id, { value: parseInt(e.currentTarget.value, 10) })}
                   width={20}
                 />
               </InlineField>
@@ -282,9 +281,9 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
         <InlineFieldRow>
           <InlineField label="Field" labelWidth={10}>
             <Select
-              options={getFieldOptions()}
+              options={getFieldOptions(filter.type)}
               value={filter.field}
-              onChange={v => updateFilter(index, { field: v.value! })}
+              onChange={v => updateFilter(filter.id, { field: v.value! })}
               width={20}
             />
           </InlineField>
@@ -295,7 +294,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
             <Select
               options={getOperatorOptions(filter)}
               value={filter.operator}
-              onChange={v => updateFilter(index, { operator: v.value! })}
+              onChange={v => updateFilter(filter.id, { operator: v.value! })}
               width={20}
             />
           </InlineField>
@@ -305,7 +304,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
           <InlineField label="Value" labelWidth={10}>
             <Input
               value={filter.value as string}
-              onChange={e => updateFilter(index, { value: e.currentTarget.value })}
+              onChange={e => updateFilter(filter.id, { value: e.currentTarget.value })}
               width={20}
             />
           </InlineField>
@@ -322,7 +321,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
             <Select
               options={MEASUREMENT_FIELDS}
               value={filter.field}
-              onChange={v => updateFilter(index, { field: v.value! })}
+              onChange={v => updateFilter(filter.id, { field: v.value! })}
               width={20}
             />
           </InlineField>
@@ -333,7 +332,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
             <Select
               options={COMPARISON_OPERATORS}
               value={filter.operator}
-              onChange={v => updateFilter(index, { operator: v.value! })}
+              onChange={v => updateFilter(filter.id, { operator: v.value! })}
               width={20}
             />
           </InlineField>
@@ -343,7 +342,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
           <InlineField label="Value" labelWidth={10}>
             <Input
               value={filter.value as string}
-              onChange={e => updateFilter(index, { value: e.currentTarget.value })}
+              onChange={e => updateFilter(filter.id, { value: e.currentTarget.value })}
               width={20}
             />
           </InlineField>
@@ -360,9 +359,9 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
         <InlineFieldRow>
           <InlineField label="Field" labelWidth={10}>
             <Select
-              options={getFieldOptions().filter(f => f.value === 'observedArea')}
+              options={getFieldOptions(filter.type).filter(f => f.value === 'observedArea')}
               value={filter.field}
-              onChange={v => updateFilter(index, { field: v.value! })}
+              onChange={v => updateFilter(filter.id, { field: v.value! })}
               width={20}
             />
           </InlineField>
@@ -373,7 +372,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
             <Select
               options={SPATIAL_OPERATORS}
               value={filter.operator}
-              onChange={v => updateFilter(index, { operator: v.value! })}
+              onChange={v => updateFilter(filter.id, { operator: v.value! })}
               width={20}
             />
           </InlineField>
@@ -401,7 +400,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
                   default:
                     defaultCoordinates = [0, 0];
                 }
-                updateFilter(index, { 
+                updateFilter(filter.id, { 
                   geometryType: v.value! as any,
                   coordinates: defaultCoordinates 
                 } as Partial<SpatialFilter>);
@@ -426,7 +425,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
               onChange={e => {
                 try {
                   const coords = JSON.parse(e.currentTarget.value);
-                  updateFilter(index, { coordinates: coords } as Partial<SpatialFilter>);
+                  updateFilter(filter.id, { coordinates: coords } as Partial<SpatialFilter>);
                 } catch (error) {
                
                 }
@@ -447,7 +446,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
               <Input
                 type="number"
                 value={filter.value as string}
-                onChange={e => updateFilter(index, { value: parseFloat(e.currentTarget.value) })}
+                onChange={e => updateFilter(filter.id, { value: parseFloat(e.currentTarget.value) })}
                 width={20}
               />
             </InlineField>
@@ -464,7 +463,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
           <InlineField label="Expression" labelWidth={10} tooltip="Enter a valid OData filter expression">
             <TextArea
               value={filter.expression || ''}
-              onChange={e => updateFilter(index, { expression: e.currentTarget.value })}
+              onChange={e => updateFilter(filter.id, { expression: e.currentTarget.value })}
               rows={5}
               placeholder="e.g., unitOfMeasurement/name eq 'degree Celsius' and result gt 20"
             />
@@ -494,7 +493,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
               value={filter.field}
               onChange={v => {
                 const newValue = v.value === 'result' ? '0' : new Date().toISOString();
-                updateFilter(index, { field: v.value!, value: newValue });
+                updateFilter(filter.id, { field: v.value!, value: newValue });
               }}
               width={20}
             />
@@ -506,7 +505,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
             <Select
               options={COMPARISON_OPERATORS}
               value={filter.operator}
-              onChange={v => updateFilter(index, { operator: v.value! })}
+              onChange={v => updateFilter(filter.id, { operator: v.value! })}
               width={20}
             />
           </InlineField>
@@ -517,7 +516,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
             {filter.field === 'result' ? (
               <Input
                 value={filter.value as string}
-                onChange={e => updateFilter(index, { value: e.currentTarget.value })}
+                onChange={e => updateFilter(filter.id, { value: e.currentTarget.value })}
                 width={20}
               />
             ) : (
@@ -527,7 +526,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
                 onChange={e => {
                   try {
                     const date = new Date(e.currentTarget.value);
-                    updateFilter(index, { value: date.toISOString() });
+                    updateFilter(filter.id, { value: date.toISOString() });
                   } catch (error) {
                     console.error('Invalid date input:', error);
                   }
@@ -580,11 +579,11 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
         </FieldSet>
       )}
 
-      {filters.length === 0 ? (
+      {filters.filter(f=> f.type!=='variable').length === 0 ? (
         <div className={styles.emptyState}>No filters applied. Click "Add Filter" to create one.</div>
       ) : (
         <div className={styles.filterList}>
-          {filters.map((filter, index) => (
+          {filters.filter(f=> f.type!=='variable').map((filter, index) => (
             <FieldSet
               key={filter.id}
               label={`${filter.type.charAt(0).toUpperCase() + filter.type.slice(1)} Filter`}
@@ -592,8 +591,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
             >
               {renderFilterForm(filter, index)}
               <div className={styles.filterActions}>
-            
-                <Button variant="destructive" size="sm" onClick={() => removeFilter(index)} icon="trash-alt">
+
+                <Button variant="destructive" size="sm" onClick={() => removeFilter(filter.id)} icon="trash-alt">
                   Remove
                 </Button>
               </div>

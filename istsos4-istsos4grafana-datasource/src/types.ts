@@ -9,9 +9,7 @@ export interface IstSOS4Query extends DataQuery {
   // Entity selection
   entity: EntityType;
   entityId?: number;
-  variables?: Variable[];
   // Query parameters
-  filter?: string; // should be removed
   filters?: FilterCondition[];
   expand?: ExpandOption[];
   select?: string[];
@@ -50,7 +48,6 @@ export const DEFAULT_QUERY: Partial<IstSOS4Query> = {
   count: false,
   resultFormat: 'default',
   filters: [],
-  variables: [],
 };
 
 export interface Entity {
@@ -181,13 +178,13 @@ export interface VariableFilter extends FilterCondition {
   field: 'id';
   entity: EntityType;
   operator: ComparisonOperator;
+  variableName: string; // Name of the dashboard variable
 }
 
 // Query builder interface
 export interface QueryBuilder {
   entity(type: EntityType): QueryBuilder;
   withId(id: number): QueryBuilder;
-  filter(expression: string): QueryBuilder;
   expand(entity: EntityType, subQuery?: any): QueryBuilder;
   select(...properties: string[]): QueryBuilder;
   orderBy(property: string, direction?: 'asc' | 'desc'): QueryBuilder;

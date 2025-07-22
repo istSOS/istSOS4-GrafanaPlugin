@@ -1,70 +1,81 @@
 import React, { useState, ChangeEvent } from 'react';
 import { InlineField, Input, Select, Button, FieldSet, IconButton } from '@grafana/ui';
 import { SelectableValue } from '@grafana/data';
-import { Variable, EntityType } from '../types';
+import { FilterCondition, VariableFilter, EntityType } from '../types';
 import { ENTITY_OPTIONS } from '../utils/constants';
+import { v4 as uuidv4 } from 'uuid';
+import { get } from 'http';
 
 interface VariablesPanelProps {
-  variables: Variable[];
-  onVariablesChange: (variables: Variable[]) => void;
+  filters: FilterCondition[];
+  onFiltersChange: (filters: FilterCondition[]) => void;
 }
 
-export function VariablesPanel({ variables, onVariablesChange }: VariablesPanelProps) {
-  const [newVariable, setNewVariable] = useState<Partial<Variable>>({
+export function VariablesPanel({ filters, onFiltersChange }: VariablesPanelProps) {
+  const [newVariable, setNewVariable] = useState<{ name: string; entity: any }>({
     name: '',
-    entity: 'Things',
+    entity: '',
   });
+
+  const variableFilters = filters.filter(f => f.type === 'variable') as VariableFilter[];
 
   const handleAddVariable = () => {
     if (!newVariable.name || !newVariable.entity) {
       return;
     }
 
-    const existingVariable = variables.find(v => v.entity === newVariable.entity);
+    const existingVariable = variableFilters.find(vf => vf.entity === newVariable.entity);
     if (existingVariable) {
-      return;
+      return; 
     }
 
-    const variable: Variable = {
-      name: newVariable.name,
-      entity: newVariable.entity,
+    const variableFilter: VariableFilter = {
+      id: uuidv4(),
+      type: 'variable',
+      field: 'id',
+      operator: 'eq',
+      value: null,
+      entity: newVariable.entity.slice(0, -1) as any, 
+      variableName: newVariable.name,
     };
 
-    onVariablesChange([...variables, variable]);
-    setNewVariable({ name: '', entity: 'Things' });
+    const updatedFilters = [...filters, variableFilter];
+    onFiltersChange(updatedFilters);
+    setNewVariable({ name: '', entity: '' });
   };
 
-  const handleRemoveVariable = (index: number) => {
-    const updatedVariables = variables.filter((_, i) => i !== index);
-    onVariablesChange(updatedVariables);
+  const handleRemoveVariable = (variableFilterId: string) => {
+    const updatedFilters = filters.filter(f => f.id !== variableFilterId);
+    onFiltersChange(updatedFilters);
   };
 
-  const handleVariableChange = (index: number, field: keyof Variable, value: any) => {
-    const updatedVariables = variables.map((variable, i) => {
-      if (i === index) {
-        return { ...variable, [field]: value };
+  const handleVariableChange = (variableFilterId: string, field: 'variableName' | 'entity', value: any) => {
+    const updatedFilters = filters.map(filter => {
+      if (filter.id === variableFilterId && filter.type === 'variable') {
+        const vf = filter as VariableFilter;
+        return { ...vf, [field]: value };
       }
-      return variable;
+      return filter;
     });
-    onVariablesChange(updatedVariables);
+    onFiltersChange(updatedFilters);
   };
 
   const getUsedEntities = () => {
-    return variables.map(v => v.entity);
+    return variableFilters.map(vf => vf.entity.concat('s'));
   };
 
   const getAvailableEntities = () => {
     const usedEntities = getUsedEntities();
-    return ENTITY_OPTIONS.filter(option => !usedEntities.includes(option.value!));
+    return ENTITY_OPTIONS.filter(option => option.value && !usedEntities.includes(option.value));
   };
 
   return (
     <FieldSet label="Variables">
       {/* Existing Variables */}
-      {variables.length > 0 && (
+      {variableFilters.length > 0 && (
         <div style={{ marginBottom: '12px' }}>
-          {variables.map((variable, index) => (
-            <div key={index} style={{ 
+          {variableFilters.map((variableFilter) => (
+            <div key={variableFilter.id} style={{ 
               display: 'flex', 
               alignItems: 'center', 
               gap: '8px', 
@@ -76,9 +87,9 @@ export function VariablesPanel({ variables, onVariablesChange }: VariablesPanelP
             }}>
               <InlineField label="Name" labelWidth={8}>
                 <Input
-                  value={variable.name}
+                  value={variableFilter.variableName}
                   onChange={(e: ChangeEvent<HTMLInputElement>) => 
-                    handleVariableChange(index, 'name', e.target.value)
+                    handleVariableChange(variableFilter.id, 'variableName', e.target.value)
                   }
                   width={15}
                   placeholder="Variable name"
@@ -88,19 +99,19 @@ export function VariablesPanel({ variables, onVariablesChange }: VariablesPanelP
               <InlineField label="Entity" labelWidth={8}>
                 <Select
                   options={ENTITY_OPTIONS}
-                  value={ENTITY_OPTIONS.find(opt => opt.value === variable.entity)}
+                  value={ENTITY_OPTIONS.find(opt => opt.value === variableFilter.entity)}
                   onChange={(value: SelectableValue<EntityType>) => 
-                    handleVariableChange(index, 'entity', value.value!)
+                    handleVariableChange(variableFilter.id, 'entity', value.value!)
                   }
                   width={15}
-                  isDisabled={true}
+                  isDisabled={true} // Disable changing entity once created to prevent conflicts
                 />
               </InlineField>
               
               <IconButton
                 name="trash-alt"
                 tooltip="Remove variable"
-                onClick={() => handleRemoveVariable(index)}
+                onClick={() => handleRemoveVariable(variableFilter.id)}
                 variant="destructive"
               />
             </div>
@@ -132,7 +143,7 @@ export function VariablesPanel({ variables, onVariablesChange }: VariablesPanelP
         <InlineField label="Entity" labelWidth={8}>
           <Select
             options={getAvailableEntities()}
-            value={ENTITY_OPTIONS.find(opt => opt.value === newVariable.entity)}
+            value={ENTITY_OPTIONS.find(opt => opt.value === newVariable.entity) || null}
             onChange={(value: SelectableValue<EntityType>) =>
               setNewVariable({ ...newVariable, entity: value.value! })
             }
@@ -140,6 +151,7 @@ export function VariablesPanel({ variables, onVariablesChange }: VariablesPanelP
             placeholder="Select entity"
           />
         </InlineField>
+        
         <Button
           onClick={handleAddVariable}
           disabled={!newVariable.name || !newVariable.entity || getAvailableEntities().length === 0}

@@ -13,7 +13,7 @@ import {
 } from '@grafana/ui';
 import { QueryEditorProps, SelectableValue } from '@grafana/data';
 import { DataSource } from '../datasource';
-import { MyDataSourceOptions, IstSOS4Query, EntityType, ExpandOption, FilterCondition, Variable } from '../types';
+import { MyDataSourceOptions, IstSOS4Query, EntityType, ExpandOption, FilterCondition } from '../types';
 import { buildODataQuery } from '../utils/queryBuilder';
 import { FilterPanel } from './FilterPanel';
 import { VariablesPanel } from './VariablesPanel';
@@ -23,7 +23,7 @@ import {
   DATASTREAMS_EXPAND_OPTIONS,
   RESULT_FORMAT_OPTIONS,
 } from '../utils/constants';
-import { getStyles } from '../utils/utils';
+import { compareEntityNames, getStyles } from '../utils/utils';
 
 type Props = QueryEditorProps<DataSource, IstSOS4Query, MyDataSourceOptions>;
 
@@ -48,7 +48,6 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     count: query.count || false,
     resultFormat: query.resultFormat || 'default',
     filters: query.filters || [],
-    variables: query.variables || [],
   };
 
   const onEntityChange = (value: SelectableValue<EntityType>) => {
@@ -146,17 +145,16 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     }
   };
 
-  const onVariablesChange = (variables: Variable[]) => {
-    onChange({ ...currentQuery, variables });
-  };
-
   const previewQuery = () => {
-    const queryString = buildODataQuery(currentQuery);
+    const queryString = buildODataQuery(currentQuery,false);
     let fullUrl = `/${currentQuery.entity}`;
-    if (currentQuery.variables && currentQuery.variables.length > 0) {
-      const matchingVariable = currentQuery.variables.find((v) => v.entity === currentQuery.entity);
-      if (matchingVariable) fullUrl += `(\$${matchingVariable.name})`;
-    } else if (currentQuery.entityId !== undefined) fullUrl += `(${currentQuery.entityId})`;
+    const variableFilters = (currentQuery.filters || []).filter(f => f.type === 'variable');
+    const matchingVariable = variableFilters.find(vf => compareEntityNames(vf.entity, currentQuery.entity));
+    if (matchingVariable) {
+      fullUrl += `(\$${(matchingVariable as any).variableName})`;
+    } else if (currentQuery.entityId !== undefined) {
+      fullUrl += `(${currentQuery.entityId})`;  
+    }
     fullUrl += queryString;
     return fullUrl;
   };
@@ -310,7 +308,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
               className={styles.filterButton}
             >
               Filter By{' '}
-              {currentQuery.filters && currentQuery.filters.length > 0 ? `(${currentQuery.filters.length})` : ''}
+              {currentQuery.filters && currentQuery.filters.filter(f => f.type !== 'variable').length > 0 ? `(${currentQuery.filters.filter(f => f.type !== 'variable').length})` : ''}
             </Button>
           </InlineFieldRow>
 
@@ -332,13 +330,19 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
               className={styles.filterButton}
             >
               Variables{' '}
-              {currentQuery.variables && currentQuery.variables.length > 0 ? `(${currentQuery.variables.length})` : ''}
+              {(() => {
+                const variableFilters = (currentQuery.filters || []).filter(f => f.type === 'variable');
+                return variableFilters.length > 0 ? `(${variableFilters.length})` : '';
+              })()}
             </Button>
           </InlineFieldRow>
 
           {/* Variables Panel */}
           <Collapse isOpen={showVariables} collapsible label="">
-            <VariablesPanel variables={currentQuery.variables || []} onVariablesChange={onVariablesChange} />
+            <VariablesPanel 
+              filters={currentQuery.filters || []} 
+              onFiltersChange={onFiltersChange} 
+            />
           </Collapse>
         </FieldSet>
 

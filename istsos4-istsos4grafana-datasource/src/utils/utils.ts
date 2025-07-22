@@ -32,6 +32,14 @@ export const formatPhenomenonTime = (phenomenonTime: string | null | undefined):
   }
 };
 
+export const compareEntityNames = (variableEntity: string | undefined, queryEntity: string | undefined): boolean => {
+  // Remove the last character from queryEntity to match variableEntity
+  // currently following this approach to modify in the future in one place
+  if (!variableEntity || !queryEntity) {
+    return false;
+  }
+  return variableEntity === queryEntity.slice(0, -1);
+};
 
 export const getStyles = (theme: GrafanaTheme2) => {
   return {

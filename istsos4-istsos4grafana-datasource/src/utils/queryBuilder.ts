@@ -1,4 +1,5 @@
 import { IstSOS4Query, EntityType, QueryBuilder as MyQueryBuilder, OrderByOption, FilterCondition, TemporalFilter, SpatialFilter, ObservationFilter,VariableFilter } from '../types';
+import { compareEntityNames } from './utils';
 
 /*
 This file contains the Query Builder class.
@@ -16,11 +17,6 @@ export class QueryBuilder implements MyQueryBuilder {
 
   withId(id: number): QueryBuilder {
     this.query.entityId = id;
-    return this;
-  }
-
-  filter(expression: string): QueryBuilder {
-    this.query.filter = expression;
     return this;
   }
 
@@ -95,7 +91,7 @@ export function createQueryBuilder(): QueryBuilder {
 /**
  * Builds the query string from the query object
  */
-export function buildODataQuery(query: IstSOS4Query): string {
+export function buildODataQuery(query: IstSOS4Query, encode: boolean=true): string {
   const params: string[] = [];
   
   let observationFilters: FilterCondition[] = [];
@@ -103,7 +99,10 @@ export function buildODataQuery(query: IstSOS4Query): string {
   
   if (query.filters && query.filters.length > 0) {
     observationFilters = query.filters.filter(f => f.type === 'Observation');
-    otherFilters = query.filters.filter(f => f.type !== 'Observation');
+    otherFilters = query.filters.filter(f => 
+      f.type !== 'Observation' && 
+      !(f.type === 'variable' && compareEntityNames(f.entity, query.entity))
+    );
   }
   if (query.entity === 'Datastreams') {
     query.expand = query.expand || [];
@@ -138,12 +137,8 @@ export function buildODataQuery(query: IstSOS4Query): string {
   if (otherFilters.length > 0) {
     const filterExpression = buildFilterExpression(otherFilters);
     if (filterExpression) {
-      params.push(`$filter=${encodeURIComponent(filterExpression)}`);
+      params.push(`$filter=${encode ? encodeURIComponent(filterExpression) : filterExpression}`);
     }
-  } 
-  // Otherwise use the raw filter string if provided
-  else if (query.filter) {
-    params.push(`$filter=${encodeURIComponent(query.filter)}`);
   }
   
   if (query.expand && query.expand.length > 0) {
@@ -200,12 +195,12 @@ export function buildODataQuery(query: IstSOS4Query): string {
   }
 
   if (query.asOf) {
-    params.push(`asOf=${encodeURIComponent(query.asOf)}`);
+    params.push(`asOf=${encode ? encodeURIComponent(query.asOf) : query.asOf}`);
   }
 
   if (query.fromTo) {
-    params.push(`from=${encodeURIComponent(query.fromTo.from)}`);
-    params.push(`to=${encodeURIComponent(query.fromTo.to)}`);
+    params.push(`from=${encode ? encodeURIComponent(query.fromTo.from) : query.fromTo.from}`);
+    params.push(`to=${encode ? encodeURIComponent(query.fromTo.to) : query.fromTo.to}`);
   }
 
   return params.length > 0 ? `?${params.join('&')}` : '';
@@ -285,6 +280,9 @@ function buildMeasurementFilter(filter: FilterCondition): string {
 function buildVariableFilter(filter: VariableFilter): string {
   if (filter.operator && filter.value !== null && filter.value !== undefined) {
     return `${filter.entity}/${filter.field} ${filter.operator} ${formatValue(filter.value)}`;
+  }
+  if (filter.variableName) {
+    return `${filter.entity}/${filter.field} ${filter.operator} $${filter.variableName}`;
   }
   return '';
 }

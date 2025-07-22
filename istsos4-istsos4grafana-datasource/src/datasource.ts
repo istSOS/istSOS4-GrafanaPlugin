@@ -10,14 +10,13 @@ import {
   DataSourceApi,
   DataFrame,
   MetricFindValue,
-  Field,
 } from '@grafana/data';
 import { getBackendSrv, getTemplateSrv } from '@grafana/runtime';
 
 import { IstSOS4Query, MyDataSourceOptions, DEFAULT_QUERY, SensorThingsResponse } from './types';
 import { buildApiUrl } from './utils/queryBuilder';
 
-import { convertEPSG2056ToWGS84 } from './utils/utils'; 
+import { compareEntityNames, convertEPSG2056ToWGS84 } from './utils/utils'; 
 import { transformDatastreams } from './Transformations/datastream';
 
 export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions> {
@@ -35,35 +34,28 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
   applyTemplateVariables(query: IstSOS4Query, scopedVars: ScopedVars) {
     let modifiedQuery = {
       ...query,
-      filter: query.filter ? getTemplateSrv().replace(query.filter, scopedVars) : query.filter,
       alias: query.alias ? getTemplateSrv().replace(query.alias, scopedVars) : query.alias,
     };
-    if (query.variables && query.variables.length > 0) {
-      for (const variable of query.variables) {
-        if (variable.name) {
-          const variableValue = getTemplateSrv().replace(`$${variable.name}`, scopedVars);
-          if (!variableValue || variableValue === `$${variable.name}`) {
-            continue;
-          }
-          if (variable.entity === query.entity) {
+    if (modifiedQuery.filters) {
+      modifiedQuery.filters = modifiedQuery.filters.map(filter => {
+        if (filter.type !== 'variable') return filter;
+          const variableFilter = filter as any;
+          const variableValue = getTemplateSrv().replace(`$${variableFilter.variableName}`, scopedVars);
+          console.log(`Processing variable filter: ${variableFilter.variableName}, entity: ${variableFilter.entity}, value: ${variableValue}`);
+          if (!variableValue || variableValue === `$${variableFilter.variableName}`)
+            return { ...variableFilter, value: null };
+          if (compareEntityNames(variableFilter.entity, query.entity)) {
             const numericValue = parseInt(variableValue, 10);
             if (!isNaN(numericValue)) {
               modifiedQuery.entityId = numericValue;
-              console.log(`Applied variable ${variable.name} as entityId: ${numericValue}`);
+              console.log(`Applied variable ${variableFilter.variableName} as entityId: ${numericValue}`);
+              return null;
+              // Remove Variable filter that has entity equal to the query entity
             }
-          } else {
-            modifiedQuery.filters = modifiedQuery.filters || [];
-            modifiedQuery.filters.push({
-              id: `variableFilter_${variable.name}`,
-              type: 'variable',
-              field: 'id',
-              operator: 'eq',
-              value: variableValue,
-              entity: variable.entity.slice(0, -1) as any,  // for singular entity type
-            });
           }
-        }
-      }
+          console.log(`Updated variable filter ${variableFilter.variableName} with value: ${variableValue}`);
+          return { ...variableFilter, value: variableValue };
+      }).filter(Boolean); 
     }
 
     return modifiedQuery;
@@ -78,7 +70,6 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
    * it maybe useful for intermediate requests (when we do not need to display the response in Grafana panels).
    */
   async query(options: DataQueryRequest<IstSOS4Query>, transformResponse: boolean = true): Promise<DataQueryResponse> {
-    console.log('Executing query with options:', options);
     const promises = options.targets.map(async (target) => {
       if (!this.filterQuery(target)) {
         return createDataFrame({ fields: [] });
@@ -252,7 +243,13 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
       const queryObj: IstSOS4Query = {
         refId: 'variables',
         entity: entity as any, 
-        filter,
+        filters: filter ? [{
+          id: 'metricFind',
+          type: 'basic',
+          field: 'name',
+          operator: 'eq',
+          value: filter,
+        }] : [],
         select,
         top,
       };
