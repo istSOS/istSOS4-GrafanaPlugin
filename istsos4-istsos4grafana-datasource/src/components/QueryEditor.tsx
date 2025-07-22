@@ -1,11 +1,28 @@
 import React, { ChangeEvent, useState } from 'react';
-import { InlineField, Input, Select, Stack, InlineFieldRow, FieldSet, MultiSelect, Button, useStyles2, Collapse } from '@grafana/ui';
+import {
+  InlineField,
+  Input,
+  Select,
+  Stack,
+  InlineFieldRow,
+  FieldSet,
+  MultiSelect,
+  Button,
+  useStyles2,
+  Collapse,
+} from '@grafana/ui';
 import { QueryEditorProps, SelectableValue } from '@grafana/data';
 import { DataSource } from '../datasource';
 import { MyDataSourceOptions, IstSOS4Query, EntityType, ExpandOption, FilterCondition, Variable } from '../types';
 import { buildODataQuery } from '../utils/queryBuilder';
 import { FilterPanel } from './FilterPanel';
-import { ENTITY_OPTIONS, THINGS_EXPAND_OPTIONS, DATASTREAMS_EXPAND_OPTIONS, RESULT_FORMAT_OPTIONS, VARIABLE_OPTIONS } from '../utils/constants';
+import { VariablesPanel } from './VariablesPanel';
+import {
+  ENTITY_OPTIONS,
+  THINGS_EXPAND_OPTIONS,
+  DATASTREAMS_EXPAND_OPTIONS,
+  RESULT_FORMAT_OPTIONS,
+} from '../utils/constants';
 import { getStyles } from '../utils/utils';
 
 type Props = QueryEditorProps<DataSource, IstSOS4Query, MyDataSourceOptions>;
@@ -21,41 +38,42 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
   const [entityList, setEntityList] = useState<Entity[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
-  
+  const [showVariables, setShowVariables] = useState(false);
+
   const styles = useStyles2(getStyles);
-  
+
   const currentQuery: IstSOS4Query = {
     ...query,
     entity: query.entity || 'Things',
     count: query.count || false,
     resultFormat: query.resultFormat || 'default',
     filters: query.filters || [],
-    variable: query.variable || undefined, 
+    variables: query.variables || [],
   };
 
   const onEntityChange = (value: SelectableValue<EntityType>) => {
     const newQuery = { ...currentQuery, entity: value.value!, entityId: undefined };
-    
+
     // Auto Expanstions when the Entity is changed
     // Currently Datastreams only
     if (value.value === 'Datastreams') {
       newQuery.expand = newQuery.expand || [];
-      if (!newQuery.expand.some(exp => exp.entity === 'Observations')) {
+      if (!newQuery.expand.some((exp) => exp.entity === 'Observations')) {
         newQuery.expand.push({ entity: 'Observations' });
       }
-      
+
       // Move any Observation filters to the Observations expansion if they exist
       // if (newQuery.filters && newQuery.filters.length > 0) {
       //   const observationFilters = newQuery.filters.filter(f => f.type === 'Observation');
       //   const otherFilters = newQuery.filters.filter(f => f.type !== 'Observation');
-        
+
       //   if (observationFilters.length > 0) {
       //     // Keep only non-Observation filters in the main filters array
       //     newQuery.filters = otherFilters;
       //   }
       // }
     }
-    
+
     onChange(newQuery);
   };
 
@@ -100,46 +118,45 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
   };
 
   const onExpandChange = (values: Array<SelectableValue<EntityType>>) => {
-    const expandOptions: ExpandOption[] = values.map(value => ({
-      entity: value.value!
+    const expandOptions: ExpandOption[] = values.map((value) => ({
+      entity: value.value!,
     }));
     onChange({ ...currentQuery, expand: expandOptions.length > 0 ? expandOptions : undefined });
   };
 
   const onFiltersChange = (filters: FilterCondition[]) => {
-    const currentFilters = currentQuery.filters || [];    
-    const hadObservationFilters = currentFilters.some(f => f.type === 'Observation');
-    const hasObservationFilters = filters.some(f => f.type === 'Observation');
-    
+    const currentFilters = currentQuery.filters || [];
+    const hadObservationFilters = currentFilters.some((f) => f.type === 'Observation');
+    const hasObservationFilters = filters.some((f) => f.type === 'Observation');
+
     // If we're removing all Observation filters and the entity is Datastreams
     if (hadObservationFilters && !hasObservationFilters && currentQuery.entity === 'Datastreams') {
       // Find and update the Observations expand to remove any filter
-      const newExpand = currentQuery.expand?.map(exp => {
+      const newExpand = currentQuery.expand?.map((exp) => {
         if (exp.entity === 'Observations' && exp.subQuery?.filter) {
           const newSubQuery = { ...exp.subQuery };
           delete newSubQuery.filter;
           return { ...exp, subQuery: Object.keys(newSubQuery).length > 0 ? newSubQuery : undefined };
         }
         return exp;
-      });      
+      });
       onChange({ ...currentQuery, filters, expand: newExpand });
     } else {
       onChange({ ...currentQuery, filters });
     }
   };
 
+  const onVariablesChange = (variables: Variable[]) => {
+    onChange({ ...currentQuery, variables });
+  };
+
   const previewQuery = () => {
     const queryString = buildODataQuery(currentQuery);
-    let fullUrl = `/${currentQuery.entity}`;    
-    if (currentQuery.variable && currentQuery.variable.name) {
-      if (currentQuery.variable.entity !== currentQuery.entity) {
-        fullUrl = `/${currentQuery.variable.entity}(\$${currentQuery.variable.name})/${currentQuery.entity}`;
-      } else {
-        fullUrl += `(\$${currentQuery.variable.name})`;
-      }
-    } else if (currentQuery.entityId !== undefined) {
-      fullUrl += `(${currentQuery.entityId})`;
-    }
+    let fullUrl = `/${currentQuery.entity}`;
+    if (currentQuery.variables && currentQuery.variables.length > 0) {
+      const matchingVariable = currentQuery.variables.find((v) => v.entity === currentQuery.entity);
+      if (matchingVariable) fullUrl += `(\$${matchingVariable.name})`;
+    } else if (currentQuery.entityId !== undefined) fullUrl += `(${currentQuery.entityId})`;
     fullUrl += queryString;
     return fullUrl;
   };
@@ -150,7 +167,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
 
   const fetchEntities = async () => {
     if (!currentQuery.entity) return;
-    
+
     setIsLoading(true);
     try {
       const fetchQuery: IstSOS4Query = {
@@ -160,11 +177,14 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
         top: 100,
         refId: 'entities',
       };
-      
-      const response = await datasource.query({
-        targets: [fetchQuery],
-      } as any, false);
-      
+
+      const response = await datasource.query(
+        {
+          targets: [fetchQuery],
+        } as any,
+        false
+      );
+
       if (response.data && response.data.length > 0 && response.data[0].meta?.custom?.rawResponse) {
         const rawResponse = response.data[0].meta.custom.rawResponse;
         if (rawResponse.value && Array.isArray(rawResponse.value)) {
@@ -191,51 +211,14 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
 
   const filteredEntities = entityList.filter((entity) => {
     if (!searchQuery) return true;
-    
+
     const id = entity['@iot.id']?.toString().toLowerCase() || '';
     const name = entity.name?.toLowerCase() || '';
     const description = entity.description?.toLowerCase() || '';
     const query = searchQuery.toLowerCase();
-    
+
     return id.includes(query) || name.includes(query) || description.includes(query);
   });
-
-  const onVariableEntityChange = (value: SelectableValue<EntityType>) => {
-    if (value.value !== undefined) {
-      onChange({ 
-        ...currentQuery, 
-        variable: { 
-          name: currentQuery.variable?.name ?? '', 
-          entity: value.value, 
-          entityId: currentQuery.variable?.entityId 
-        } 
-      });
-    }
-  };
-
-  const onVariableNameChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const variableName = event.target.value;
-    onChange({ 
-      ...currentQuery, 
-      variable: { 
-        name: variableName, 
-        entity: currentQuery.variable?.entity || 'Things', 
-        entityId: currentQuery.variable?.entityId 
-      } 
-    });
-  };
-
-  const onVariableEntityIdChange = (event: ChangeEvent<HTMLInputElement>) => {
-    const entityId = event.target.value ? parseInt(event.target.value, 10) : undefined;
-    onChange({ 
-      ...currentQuery, 
-      variable: { 
-        name: currentQuery.variable?.name ?? '', 
-        entity: currentQuery.variable?.entity || 'Things', 
-        entityId: entityId
-      } 
-    });
-  };
 
   return (
     <div>
@@ -251,7 +234,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
               />
             </InlineField>
             <InlineField label="Entity ID" labelWidth={12} tooltip="Enter a specific entity ID">
-              <Input 
+              <Input
                 value={currentQuery.entityId || ''}
                 onChange={onEntityIdChange}
                 width={20}
@@ -262,12 +245,19 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
           </InlineFieldRow>
           {currentQuery.entity === 'Things' && (
             <InlineFieldRow>
-              <InlineField label="Expand Entities" labelWidth={12} tooltip="Select related entities to include in the response" grow>
+              <InlineField
+                label="Expand Entities"
+                labelWidth={12}
+                tooltip="Select related entities to include in the response"
+                grow
+              >
                 <MultiSelect
                   options={THINGS_EXPAND_OPTIONS}
-                  value={currentQuery.expand?.map(exp => 
-                    THINGS_EXPAND_OPTIONS.find(opt => opt.value === exp.entity)
-                  ).filter(Boolean) as SelectableValue<EntityType>[] || []}
+                  value={
+                    (currentQuery.expand
+                      ?.map((exp) => THINGS_EXPAND_OPTIONS.find((opt) => opt.value === exp.entity))
+                      .filter(Boolean) as SelectableValue<EntityType>[]) || []
+                  }
                   onChange={onExpandChange}
                   placeholder="Select entities to expand..."
                 />
@@ -276,19 +266,26 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
           )}
           {currentQuery.entity === 'Datastreams' && (
             <InlineFieldRow>
-              <InlineField label="Expand Entities" labelWidth={12} tooltip="Select related entities to include in the response" grow>
+              <InlineField
+                label="Expand Entities"
+                labelWidth={12}
+                tooltip="Select related entities to include in the response"
+                grow
+              >
                 <MultiSelect
                   options={DATASTREAMS_EXPAND_OPTIONS}
-                  value={currentQuery.expand?.map(exp => 
-                    DATASTREAMS_EXPAND_OPTIONS.find(opt => opt.value === exp.entity)
-                  ).filter(Boolean) as SelectableValue<EntityType>[] || []}
+                  value={
+                    (currentQuery.expand
+                      ?.map((exp) => DATASTREAMS_EXPAND_OPTIONS.find((opt) => opt.value === exp.entity))
+                      .filter(Boolean) as SelectableValue<EntityType>[]) || []
+                  }
                   onChange={onExpandChange}
                   placeholder="Select entities to expand..."
                 />
               </InlineField>
             </InlineFieldRow>
           )}
-          
+
           <div style={{ height: '10px' }} />
           <InlineFieldRow>
             <InlineField label="Alias" labelWidth={12} tooltip="Display name for this query">
@@ -303,29 +300,48 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
               />
             </InlineField>
           </InlineFieldRow>
-          
+
           {/* Filter By Button */}
           <InlineFieldRow>
             <Button
-              variant={showFilters ? "primary" : "secondary"}
+              variant={showFilters ? 'primary' : 'secondary'}
               onClick={() => setShowFilters(!showFilters)}
-              icon={showFilters ? "angle-down" : "angle-right"}
+              icon={showFilters ? 'angle-down' : 'angle-right'}
               className={styles.filterButton}
             >
-              Filter By {currentQuery.filters && currentQuery.filters.length > 0 ? `(${currentQuery.filters.length})` : ''}
+              Filter By{' '}
+              {currentQuery.filters && currentQuery.filters.length > 0 ? `(${currentQuery.filters.length})` : ''}
             </Button>
           </InlineFieldRow>
-          
+
           {/* Filter Panel */}
           <Collapse isOpen={showFilters} collapsible label="">
-            <FilterPanel 
-              entityType={currentQuery.entity} 
-              filters={currentQuery.filters || []} 
-              onFiltersChange={onFiltersChange} 
+            <FilterPanel
+              entityType={currentQuery.entity}
+              filters={currentQuery.filters || []}
+              onFiltersChange={onFiltersChange}
             />
           </Collapse>
+
+          {/* Variables Button */}
+          <InlineFieldRow>
+            <Button
+              variant={showVariables ? 'primary' : 'secondary'}
+              onClick={() => setShowVariables(!showVariables)}
+              icon={showVariables ? 'angle-down' : 'angle-right'}
+              className={styles.filterButton}
+            >
+              Variables{' '}
+              {currentQuery.variables && currentQuery.variables.length > 0 ? `(${currentQuery.variables.length})` : ''}
+            </Button>
+          </InlineFieldRow>
+
+          {/* Variables Panel */}
+          <Collapse isOpen={showVariables} collapsible label="">
+            <VariablesPanel variables={currentQuery.variables || []} onVariablesChange={onVariablesChange} />
+          </Collapse>
         </FieldSet>
-        
+
         {/* Advanced Options */}
         <FieldSet label="Advanced Options">
           <InlineFieldRow>
@@ -359,7 +375,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
             </InlineField>
           </InlineFieldRow>
         </FieldSet>
-        
+
         {/* Entity Browser */}
         <FieldSet label={`${currentQuery.entity} Browser`}>
           <div className={styles.searchRow}>
@@ -373,7 +389,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
               {isLoading ? 'Loading...' : 'Fetch Entities'}
             </Button>
           </div>
-          
+
           {entityList.length > 0 ? (
             <div className={styles.tableContainer}>
               <table className={styles.table}>
@@ -392,11 +408,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
                       <td>{entity.name || 'N/A'}</td>
                       <td className={styles.descriptionCell}>{entity.description || 'N/A'}</td>
                       <td>
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={() => selectEntity(entity['@iot.id'])}
-                        >
+                        <Button size="sm" variant="secondary" onClick={() => selectEntity(entity['@iot.id'])}>
                           Select
                         </Button>
                       </td>
@@ -411,54 +423,10 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
             </div>
           )}
         </FieldSet>
-        <FieldSet label="Variables">
-          <InlineFieldRow>
-            <InlineField label="Variable Name" labelWidth={12} tooltip="Enter the name of a dashboard variable (without $ prefix)">
-              <Input 
-                value={currentQuery.variable?.name || ''} 
-                onChange={onVariableNameChange} 
-                width={20} 
-                type="text" 
-                placeholder="e.g., thing_id" 
-              />
-            </InlineField>
-            <InlineField label="Variable Entity" labelWidth={12} tooltip="Select the entity type for the variable">
-              <Select 
-                options={ENTITY_OPTIONS} 
-                value={ENTITY_OPTIONS.find(opt => opt.value === currentQuery.variable?.entity) || null} 
-                onChange={onVariableEntityChange} 
-                width={20} 
-              />
-            </InlineField>
-          </InlineFieldRow>
-          <InlineFieldRow>
-            <InlineField label="Variable Entity ID" labelWidth={12} tooltip="Optional: Set a specific entity ID for the variable (overrides dashboard variable)">
-              <Input 
-                value={currentQuery.variable?.entityId || ''} 
-                onChange={onVariableEntityIdChange} 
-                width={20} 
-                type="number" 
-                placeholder="e.g., 123" 
-              />
-            </InlineField>
-          </InlineFieldRow>
-          {currentQuery.variable?.name && (
-            <InlineFieldRow>
-              <InlineField label="Variable Usage" labelWidth={12}>
-                <div style={{ padding: '8px', backgroundColor: '#f5f5f5', borderRadius: '4px', fontSize: '12px' }}>
-                  Variable <code>${currentQuery.variable.name}</code> will be applied to {currentQuery.variable.entity} entity.
-                  {currentQuery.variable.entityId && ` Default ID: ${currentQuery.variable.entityId}`}
-                </div>
-              </InlineField>
-            </InlineFieldRow>
-          )}
-        </FieldSet>
       </Stack>
       <div style={{ width: '100%' }}>
         <FieldSet label="Query Preview">
-          <div className={styles.queryPreview}>
-            {previewQuery()}
-          </div>
+          <div className={styles.queryPreview}>{previewQuery()}</div>
         </FieldSet>
       </div>
     </div>

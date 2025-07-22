@@ -9,9 +9,9 @@ export interface IstSOS4Query extends DataQuery {
   // Entity selection
   entity: EntityType;
   entityId?: number;
-  variable?: Variable;
+  variables?: Variable[];
   // Query parameters
-  filter?: string;
+  filter?: string; // should be removed
   filters?: FilterCondition[];
   expand?: ExpandOption[];
   select?: string[];
@@ -50,6 +50,7 @@ export const DEFAULT_QUERY: Partial<IstSOS4Query> = {
   count: false,
   resultFormat: 'default',
   filters: [],
+  variables: [],
 };
 
 export interface Entity {

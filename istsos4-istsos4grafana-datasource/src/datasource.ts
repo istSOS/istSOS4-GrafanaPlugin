@@ -38,35 +38,33 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
       filter: query.filter ? getTemplateSrv().replace(query.filter, scopedVars) : query.filter,
       alias: query.alias ? getTemplateSrv().replace(query.alias, scopedVars) : query.alias,
     };
-
-    // Handle variable substitution
-    if (query.variable && query.variable.name) {
-      const variableValue = getTemplateSrv().replace(`$${query.variable.name}`, scopedVars);
-      
-      console.log(`Variable entity: ${query.variable.entity}`);
-      console.log(`Query entity: ${query.entity}`);
-      if (!variableValue || variableValue === `$${query.variable.name}`) {
-        console.log(`Variable ${query.variable.name} not found or has no value`);
-        return modifiedQuery;
-      }      
-      if (query.variable.entity === query.entity) {
-        const numericValue = parseInt(variableValue, 10);
-        if (!isNaN(numericValue)) {
-          modifiedQuery.entityId = numericValue;
-          console.log(`Applied variable ${query.variable.name} as entityId: ${numericValue}`);
+    if (query.variables && query.variables.length > 0) {
+      for (const variable of query.variables) {
+        if (variable.name) {
+          const variableValue = getTemplateSrv().replace(`$${variable.name}`, scopedVars);
+          if (!variableValue || variableValue === `$${variable.name}`) {
+            continue;
+          }
+          if (variable.entity === query.entity) {
+            const numericValue = parseInt(variableValue, 10);
+            if (!isNaN(numericValue)) {
+              modifiedQuery.entityId = numericValue;
+              console.log(`Applied variable ${variable.name} as entityId: ${numericValue}`);
+            }
+          } else {
+            modifiedQuery.filters = modifiedQuery.filters || [];
+            modifiedQuery.filters.push({
+              id: `variableFilter_${variable.name}`,
+              type: 'variable',
+              field: 'id',
+              operator: 'eq',
+              value: variableValue,
+              entity: variable.entity.slice(0, -1) as any,  // for singular entity type
+            });
+          }
         }
       }
-      else {
-        modifiedQuery.filters?.push({
-          id: 'variableFilter',
-          type: 'variable',
-          field: 'id',
-          operator: 'eq',
-          value: variableValue,
-          entity: query.variable.entity.replace('s', '') as any,
-        });
-      }
-    } 
+    }
 
     return modifiedQuery;
   }
@@ -101,7 +99,7 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
         });        
         
         if (transformResponse) {
-          const result = this.transformResponse(response, target);
+          const result = this.transformResponse(response, query);
           return Array.isArray(result) ? result : [result];
         } else {
           const rawData = response.data as SensorThingsResponse;
@@ -498,6 +496,7 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
   }
 
   private transformThings(data: SensorThingsResponse, target: IstSOS4Query) {
+    console.log("Transforming Things");
     if (!data.value || data.value.length === 0) {
       return createDataFrame({
         refId: target.refId,
