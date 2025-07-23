@@ -290,23 +290,46 @@ function buildVariableFilter(filter: VariableFilter): string {
  * Builds a spatial filter expression
  */
 function buildSpatialFilter(filter: SpatialFilter): string {
-  if (!filter.operator || !filter.geometryType || !filter.coordinates) {
+  if (!filter.operator || !filter.geometryType) {
     return '';
   }
 
   let geometryString = '';
   if (filter.geometryType === 'Point') {
+    if (!filter.coordinates || filter.coordinates.length < 2) {
+      console.warn('Invalid Point coordinates for spatial filter, length less than 2');
+      return '';
+    }
     geometryString = `geography'POINT (${filter.coordinates[0]} ${filter.coordinates[1]})'`;
   } else if (filter.geometryType === 'Polygon') {
-    // Format polygon coordinates as 'POLYGON ((x1 y1, x2 y2, ...))'
-    const coordsString = filter.coordinates.map((ring: number[][]) => {
-      return ring.map((point: number[]) => `${point[0]} ${point[1]}`).join(', ');
+    if (!filter.rings || filter.rings.length === 0) {
+      console.warn('Invalid Polygon rings for spatial filter, no rings provided');
+      return '';
+    }    
+    const ringsString = filter.rings.map((ring) => {
+      if (!ring.coordinates || ring.coordinates.length < 4) {
+        return ''; 
+      }
+      const coords = [...ring.coordinates];
+      const firstPoint = coords[0];
+      const lastPoint = coords[coords.length - 1];
+      if (firstPoint[0] !== lastPoint[0] || firstPoint[1] !== lastPoint[1]) {
+        coords.push([firstPoint[0], firstPoint[1]]);
+      }
+      return coords.map((point) => `${point[0]} ${point[1]}`).join(', ');
     }).join('), (');
-    console.log('coordsString', coordsString);
-    geometryString = `geography'POLYGON ((${coordsString}))'`;
+    
+    if (ringsString.length === 0) {
+      return '';
+    }
+    
+    geometryString = `geography'POLYGON ((${ringsString}))'`;
   } else if (filter.geometryType === 'LineString') {
+    if (!filter.coordinates || filter.coordinates.length < 2) {
+      return '';
+    }
     const coordsString = filter.coordinates.map((point: number[]) => `${point[0]} ${point[1]}`).join(', ');
-    geometryString = `geography'LINESTRING (${coordsString})'`;
+    geometryString = `geography'LINESTRING (${coordsString})'`; 
   }
 
   if (filter.operator === 'st_distance' && typeof filter.value === 'number') {

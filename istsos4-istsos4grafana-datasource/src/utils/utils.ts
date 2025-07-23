@@ -41,6 +41,34 @@ export const compareEntityNames = (variableEntity: string | undefined, queryEnti
   return variableEntity === queryEntity.slice(0, -1);
 };
 
+export const parseCoordinateString = (coordStr: string): [number, number][] => {
+      if (!coordStr.trim()) return [];
+      
+      const coords = coordStr.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
+      const pairs: [number, number][] = [];
+      
+      for (let i = 0; i < coords.length - 1; i += 2) {
+        if (i + 1 < coords.length) {
+          pairs.push([coords[i], coords[i + 1]]);
+        }
+      }
+      
+      return pairs;
+    };
+
+export const ensureClosedRing = (coords: [number, number][]): [number, number][] => {
+      if (coords.length === 0) return coords;
+      
+      const first = coords[0];
+      const last = coords[coords.length - 1];
+      
+      if (first[0] !== last[0] || first[1] !== last[1]) {
+        return [...coords, first];
+      }
+      
+      return coords;
+    };
+
 export const getStyles = (theme: GrafanaTheme2) => {
   return {
     searchRow: css`

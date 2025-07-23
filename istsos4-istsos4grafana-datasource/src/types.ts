@@ -160,6 +160,9 @@ export interface SpatialFilter extends FilterCondition {
   operator: SpatialOperator;
   geometryType: 'Point' | 'Polygon' | 'LineString';
   coordinates: any;
+  rings?: {
+    coordinates: [number, number][];
+  }[];
 }
 
 export interface ComplexFilter extends FilterCondition {

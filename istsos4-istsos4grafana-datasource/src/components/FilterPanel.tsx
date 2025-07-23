@@ -16,7 +16,7 @@ import {
   ObservationFilter,
 } from '../types';
 import { COMMON_FIELDS, OBSERVATION_FIELDS, FILTER_TYPES, COMPARISON_OPERATORS, STRING_OPERATORS, SPATIAL_OPERATORS, TEMPORAL_FUNCTIONS, GEOMETRY_TYPES, MEASUREMENT_FIELDS, TEMPORAL_FIELDS, SPATIAL_FIELDS } from '../utils/constants';
-
+import { ensureClosedRing,parseCoordinateString } from 'utils/utils';
 interface FilterPanelProps {
   entityType: EntityType;
   filters: FilterCondition[];
@@ -82,6 +82,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
           operator: 'st_within',
           geometryType: 'Point',
           coordinates: [0, 0],
+          rings: undefined, // Will be initialized when Polygon is selected
         } as SpatialFilter;
         break;
       case 'complex':
@@ -352,8 +353,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
   };
 
 
-  // To be Updated and Checked
   const renderSpatialFilter = (filter: SpatialFilter, index: number) => {
+    const rings = filter.geometryType === 'Polygon' ? (filter.rings || [{ coordinates: [] }]) : [];    
     return (
       <div className={styles.filterForm}>
         <InlineFieldRow>
@@ -379,66 +380,153 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
         </InlineFieldRow>
         
         <InlineFieldRow>
-          <InlineField label="Geometry Type" labelWidth={10}>
+          <InlineField label="Type" labelWidth={10}>
             <Select
               options={GEOMETRY_TYPES}
               value={filter.geometryType}
               onChange={v => {
                 // Reset coordinates to valid defaults based on the selected geometry type
                 let defaultCoordinates;
+                let defaultRings;
                 switch (v.value) {
                   case 'Point':
                     defaultCoordinates = [0, 0];
+                    defaultRings = undefined;
                     break;
                   case 'LineString':
                     defaultCoordinates = [[0, 0], [1, 1]];
+                    defaultRings = undefined;
                     break;
                   case 'Polygon':
-                    // Polygon requires a closed ring (first and last points match)
+                    defaultRings = [{ coordinates: [] }];
                     defaultCoordinates = [[[0, 0], [1, 0], [1, 1], [0, 0]]];
                     break;
                   default:
                     defaultCoordinates = [0, 0];
+                    defaultRings = undefined;
                 }
                 updateFilter(filter.id, { 
                   geometryType: v.value! as any,
-                  coordinates: defaultCoordinates 
+                  coordinates: defaultCoordinates,
+                  rings: defaultRings
                 } as Partial<SpatialFilter>);
               }}
               width={20}
             />
           </InlineField>
-        </InlineFieldRow>
-        
-        <InlineFieldRow>
-          <InlineField 
-            label="Coordinates" 
-            labelWidth={10} 
-            tooltip={
-              filter.geometryType === 'Point' ? "Enter as [longitude, latitude]" :
-              filter.geometryType === 'LineString' ? "Enter as array of points [[lon1, lat1], [lon2, lat2], ...]" :
-              "Enter as array of rings [[[lon1, lat1], [lon2, lat2], ...]], first and last point must be identical"
-            }
-          >
-            <TextArea
-              value={JSON.stringify(filter.coordinates)}
-              onChange={e => {
-                try {
-                  const coords = JSON.parse(e.currentTarget.value);
-                  updateFilter(filter.id, { coordinates: coords } as Partial<SpatialFilter>);
-                } catch (error) {
-               
-                }
-              }}
-                            rows={3}
-              placeholder={
-                filter.geometryType === 'Point' ? "[0, 0]" :
-                filter.geometryType === 'LineString' ? "[[0, 0], [1, 1]]" :
-                "[[[0, 0], [1, 0], [1, 1], [0, 0]]]"
+        </InlineFieldRow>        
+        {filter.geometryType === 'Polygon' && (
+          <>
+            <InlineFieldRow>
+              <InlineField label="Number of Rings" labelWidth={18} tooltip="1 outer ring + N inner rings (holes)">
+                <Input
+                  type="number"
+                  min={1}
+                  value={rings.length}
+                  onChange={e => {
+                    const numRings = Math.max(1, parseInt(e.currentTarget.value) || 1);
+                    const newRings = [...rings];                    
+                    while (newRings.length < numRings) {
+                      newRings.push({ coordinates: [] });
+                    }
+                    while (newRings.length > numRings) {
+                      newRings.pop();
+                    }
+                    
+                    updateFilter(filter.id, { rings: newRings } as Partial<SpatialFilter>);
+                  }}
+                  width={20}
+                />
+              </InlineField>
+            </InlineFieldRow>
+            
+            {rings.map((ring, ringIndex) => (
+              <div key={ringIndex} style={{ marginLeft: '20px', marginBottom: '10px', padding: '10px', border: '1px solid #444', borderRadius: '4px' }}>
+                
+                <InlineFieldRow>
+                  <InlineField label="Coordinates Count" labelWidth={15} tooltip="Number of coordinate pairs for this ring">
+                    <Input
+                      type="number"
+                      min={4}
+                      value={ring.coordinates.length}
+                      onChange={e => {
+                        const numCoords = Math.max(4, parseInt(e.currentTarget.value) || 4);
+                        const newRings = [...rings];
+                        const currentCoords = newRings[ringIndex].coordinates;                        
+                        while (currentCoords.length < numCoords) {
+                          currentCoords.push([0, 0]);
+                        }
+                        while (currentCoords.length > numCoords) {
+                          currentCoords.pop();
+                        }
+                        newRings[ringIndex] = { coordinates: currentCoords };
+                        updateFilter(filter.id, { rings: newRings } as Partial<SpatialFilter>);
+                      }}
+                      width={15}
+                    />
+                  </InlineField>
+                </InlineFieldRow>
+                
+                <InlineFieldRow>
+                  <InlineField 
+                    label="Coordinates" 
+                    labelWidth={15} 
+                    tooltip="Enter coordinates as: x1,y1, x2,y2, ..., xn,yn"
+                  >
+                    <TextArea
+                      value={ring.coordinates.map(coord => `${coord[0]},${coord[1]}`).join(', ')}
+                      onChange={e => {
+                        const coordString = e.currentTarget.value;
+                        const parsedCoords = parseCoordinateString(coordString);
+                        const closedCoords = ensureClosedRing(parsedCoords);
+                        const newRings = [...rings];
+                        newRings[ringIndex] = { coordinates: closedCoords };                        
+                        const geoJsonCoords = newRings.map(r => r.coordinates);
+                        updateFilter(filter.id, { 
+                          rings: newRings,
+                          coordinates: geoJsonCoords
+                        } as Partial<SpatialFilter>);
+                      }}
+                      rows={3}
+                      placeholder="0,0, 1,0, 1,1, 0,1"
+                    />
+                  </InlineField>
+                </InlineFieldRow>
+              </div>
+            ))}
+          </>
+        )}        
+        {filter.geometryType !== 'Polygon' && (
+          <InlineFieldRow>
+            <InlineField 
+              label="Coordinates" 
+              labelWidth={10} 
+              tooltip={
+                filter.geometryType === 'Point' ? "Enter as [longitude, latitude]" :
+                filter.geometryType === 'LineString' ? "Enter as array of points [[lon1, lat1], [lon2, lat2], ...]" :
+                "Enter as array of rings [[[lon1, lat1], [lon2, lat2], ...]], first and last point must be identical"
               }
-            />
-          </InlineField>
-        </InlineFieldRow>
+            >
+              <TextArea
+                value={JSON.stringify(filter.coordinates)}
+                onChange={e => {
+                  try {
+                    const coords = JSON.parse(e.currentTarget.value);
+                    updateFilter(filter.id, { coordinates: coords } as Partial<SpatialFilter>);
+                  } catch (error) {
+                 
+                  }
+                }}
+                              rows={3}
+                placeholder={
+                  filter.geometryType === 'Point' ? "[0, 0]" :
+                  filter.geometryType === 'LineString' ? "[[0, 0], [1, 1]]" :
+                  "[[[0, 0], [1, 0], [1, 1], [0, 0]]]"
+                }
+              />
+            </InlineField>
+          </InlineFieldRow>
+        )}
         
         {filter.operator === 'st_distance' && (
           <InlineFieldRow>
