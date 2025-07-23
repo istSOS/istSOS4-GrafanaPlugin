@@ -205,59 +205,17 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
     }
   }
 
-  async metricFindQuery(query: string, options?: any): Promise<MetricFindValue[]> {
+  async metricFindQuery(query: IstSOS4Query, options?: any): Promise<MetricFindValue[]> {
     console.log('Metric find query:', query);
-    const replaced = getTemplateSrv().replace(query, options?.scopedVars);
+    const modifiedQuery = this.applyTemplateVariables(query, options?.scopedVars);
+    console.log('Modified query:', modifiedQuery);
     
     try {
-      let entity = replaced;
-      let filter = '';
-      let select = ['name', 'description', '@iot.id'];
-      let top = 100;
-      
-      if (replaced.includes('?')) {
-        const [entityPart, paramsPart] = replaced.split('?');
-        entity = entityPart;
-        
-        const params = new URLSearchParams(paramsPart);
-        
-        if (params.has('$filter')) {
-          filter = params.get('$filter') || '';
-        }
-        
-        if (params.has('$select')) {
-          const selectParam = params.get('$select');
-          if (selectParam) {
-            select = selectParam.split(',').map(s => s.trim());
-          }
-        }
-        
-        if (params.has('$top')) {
-          const topParam = params.get('$top');
-          if (topParam) {
-            top = parseInt(topParam, 10);
-          }
-        }
-      }
-      
-      const queryObj: IstSOS4Query = {
-        refId: 'variables',
-        entity: entity as any, 
-        filters: filter ? [{
-          id: 'metricFind',
-          type: 'basic',
-          field: 'name',
-          operator: 'eq',
-          value: filter,
-        }] : [],
-        select,
-        top,
-      };
       
       const routePath = '/sensorapi';
       const path = this.instanceSettings.jsonData.path || '';
       const baseUrl = `${this.url}${routePath}${path}`;
-      const apiUrl = buildApiUrl(baseUrl, queryObj);
+      const apiUrl = buildApiUrl(baseUrl, modifiedQuery);
       console.log('Executing SensorThings API query for variables:', apiUrl);
       
       const response = await getBackendSrv().datasourceRequest({
@@ -277,7 +235,7 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
         let text = entity.name || entity['@iot.id']?.toString() || '';
         let value = entity['@iot.id']?.toString() || '';
         
-        if (queryObj.entity === 'Observations') {
+        if (modifiedQuery.entity === 'Observations') {
           text = entity.resultTime || entity.phenomenonTime || entity['@iot.id']?.toString() || '';
         }
         

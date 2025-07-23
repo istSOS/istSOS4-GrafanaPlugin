@@ -4,7 +4,6 @@ import { SelectableValue } from '@grafana/data';
 import { FilterCondition, VariableFilter, EntityType } from '../types';
 import { ENTITY_OPTIONS } from '../utils/constants';
 import { v4 as uuidv4 } from 'uuid';
-import { get } from 'http';
 
 interface VariablesPanelProps {
   filters: FilterCondition[];
