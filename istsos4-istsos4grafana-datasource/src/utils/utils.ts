@@ -38,6 +38,7 @@ export const compareEntityNames = (variableEntity: string | undefined, queryEnti
   if (!variableEntity || !queryEntity) {
     return false;
   }
+  if (queryEntity=== 'ObservedProperties') return variableEntity === 'ObservedProperty';
   return variableEntity === queryEntity.slice(0, -1);
 };
 
@@ -68,6 +69,13 @@ export const ensureClosedRing = (coords: [number, number][]): [number, number][]
       
       return coords;
     };
+
+export const getSingularEntityname = (entity: string): string => {
+  if (entity==='ObservedProperties') {
+    return 'ObservedProperty';
+  }
+  return entity.slice(0, -1);
+};
 
 export const getStyles = (theme: GrafanaTheme2) => {
   return {

@@ -4,6 +4,7 @@ import { SelectableValue } from '@grafana/data';
 import { FilterCondition, VariableFilter, EntityType } from '../types';
 import { ENTITY_OPTIONS } from '../utils/constants';
 import { v4 as uuidv4 } from 'uuid';
+import { getSingularEntityname } from 'utils/utils';
 
 interface VariablesPanelProps {
   filters: FilterCondition[];
@@ -34,7 +35,7 @@ export function VariablesPanel({ filters, onFiltersChange }: VariablesPanelProps
       field: 'id',
       operator: 'eq',
       value: null,
-      entity: newVariable.entity.slice(0, -1) as any, 
+      entity: getSingularEntityname(newVariable.entity) as any,
       variableName: newVariable.name,
     };
 

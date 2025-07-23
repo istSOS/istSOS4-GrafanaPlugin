@@ -175,15 +175,21 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
         };
       } catch (error) {
         console.error('Connection test failed:', error);
-        
-        if (error instanceof Error) {
-          if (error.message.includes('401') || error.message.includes('Unauthorized')) {
+        if (error && typeof error === 'object' && 'status' in error) {
+          const errorResponse = error as any;
+          if (errorResponse.status === 400) {
+            return {
+              status: 'error',
+              message: 'Authentication to data source failed. Please verify your OAuth2 configuration.',
+            };
+          }
+          if (errorResponse.status === 401) {
             return {
               status: 'error',
               message: 'OAuth2 authentication failed. Please check your credentials.',
             };
           }
-          if (error.message.includes('404') || error.message.includes('Not Found')) {
+          if (errorResponse.status === 404) {
             return {
               status: 'error',
               message: 'API endpoint not found. Please check your API URL and path.',
