@@ -441,32 +441,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
             </InlineFieldRow>
             
             {rings.map((ring, ringIndex) => (
-              <div key={ringIndex} style={{ marginLeft: '20px', marginBottom: '10px', padding: '10px', border: '1px solid #444', borderRadius: '4px' }}>
-                
-                <InlineFieldRow>
-                  <InlineField label="Coordinates Count" labelWidth={15} tooltip="Number of coordinate pairs for this ring">
-                    <Input
-                      type="number"
-                      min={4}
-                      value={ring.coordinates.length}
-                      onChange={e => {
-                        const numCoords = Math.max(4, parseInt(e.currentTarget.value) || 4);
-                        const newRings = [...rings];
-                        const currentCoords = newRings[ringIndex].coordinates;                        
-                        while (currentCoords.length < numCoords) {
-                          currentCoords.push([0, 0]);
-                        }
-                        while (currentCoords.length > numCoords) {
-                          currentCoords.pop();
-                        }
-                        newRings[ringIndex] = { coordinates: currentCoords };
-                        updateFilter(filter.id, { rings: newRings } as Partial<SpatialFilter>);
-                      }}
-                      width={15}
-                    />
-                  </InlineField>
-                </InlineFieldRow>
-                
+              <div key={ringIndex} style={{ marginLeft: '20px', marginBottom: '10px', padding: '10px', border: '1px solid #444', borderRadius: '4px' }}>                
                 <InlineFieldRow>
                   <InlineField 
                     label="Coordinates" 
