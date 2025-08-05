@@ -23,7 +23,7 @@ import {
   DATASTREAMS_EXPAND_OPTIONS,
   RESULT_FORMAT_OPTIONS,
 } from '../utils/constants';
-import { compareEntityNames, getStyles } from '../utils/utils';
+import { compareEntityNames, getStyles,getExpandOptions } from '../utils/utils';
 
 type Props = QueryEditorProps<DataSource, IstSOS4Query, MyDataSourceOptions>;
 
@@ -41,6 +41,8 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
   const [showVariables, setShowVariables] = useState(false);
 
   const styles = useStyles2(getStyles);
+
+  const expandOptions = getExpandOptions(query.entity);
 
   const currentQuery: IstSOS4Query = {
     ...query,
@@ -241,7 +243,6 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
               />
             </InlineField>
           </InlineFieldRow>
-          {currentQuery.entity === 'Things' && (
             <InlineFieldRow>
               <InlineField
                 label="Expand Entities"
@@ -250,10 +251,10 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
                 grow
               >
                 <MultiSelect
-                  options={THINGS_EXPAND_OPTIONS}
+                  options={expandOptions}
                   value={
                     (currentQuery.expand
-                      ?.map((exp) => THINGS_EXPAND_OPTIONS.find((opt) => opt.value === exp.entity))
+                      ?.map((exp) => expandOptions.find((opt) => opt.value === exp.entity))
                       .filter(Boolean) as SelectableValue<EntityType>[]) || []
                   }
                   onChange={onExpandChange}
@@ -261,29 +262,6 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
                 />
               </InlineField>
             </InlineFieldRow>
-          )}
-          {currentQuery.entity === 'Datastreams' && (
-            <InlineFieldRow>
-              <InlineField
-                label="Expand Entities"
-                labelWidth={12}
-                tooltip="Select related entities to include in the response"
-                grow
-              >
-                <MultiSelect
-                  options={DATASTREAMS_EXPAND_OPTIONS}
-                  value={
-                    (currentQuery.expand
-                      ?.map((exp) => DATASTREAMS_EXPAND_OPTIONS.find((opt) => opt.value === exp.entity))
-                      .filter(Boolean) as SelectableValue<EntityType>[]) || []
-                  }
-                  onChange={onExpandChange}
-                  placeholder="Select entities to expand..."
-                />
-              </InlineField>
-            </InlineFieldRow>
-          )}
-
           <div style={{ height: '10px' }} />
           <InlineFieldRow>
             <InlineField label="Alias" labelWidth={12} tooltip="Display name for this query">

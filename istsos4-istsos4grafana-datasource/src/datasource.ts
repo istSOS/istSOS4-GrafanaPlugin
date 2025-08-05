@@ -17,8 +17,10 @@ import { IstSOS4Query, MyDataSourceOptions, DEFAULT_QUERY, SensorThingsResponse 
 import { buildApiUrl } from './utils/queryBuilder';
 
 import { compareEntityNames } from './utils/utils';
-import { transformDatastreams } from './Transformations/datastream';
-import { transformThings } from 'Transformations/thing';
+import { transformDatastreams } from './transformations/datastream';
+import { transformThings } from 'transformations/thing';
+import { transformSensors } from 'transformations/sensor';
+import { transformObservedProperties } from 'transformations/observed_property';
 
 export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions> {
   url?: string;
@@ -273,9 +275,9 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
       case 'Locations':
         return this.transformLocations(data, target);
       case 'Sensors':
-        return this.transformSensors(data, target);
+        return transformSensors(data, target);
       case 'ObservedProperties':
-        return this.transformObservedProperties(data, target);
+        return transformObservedProperties(data, target);
       case 'FeaturesOfInterest':
         return this.transformFeaturesOfInterest(data, target);
       case 'HistoricalLocations':
@@ -327,11 +329,6 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
   private transformLocations(data: SensorThingsResponse, target: IstSOS4Query) {
     return this.transformGeneric(data, target);
   }
-
-  private transformSensors(data: SensorThingsResponse, target: IstSOS4Query) {
-    return this.transformGeneric(data, target);
-  }
-
   private transformObservedProperties(data: SensorThingsResponse, target: IstSOS4Query) {
     return this.transformGeneric(data, target);
   }

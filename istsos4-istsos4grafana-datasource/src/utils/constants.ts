@@ -21,7 +21,14 @@ export const ENTITY_OPTIONS: Array<SelectableValue<EntityType>> = [
     { label: 'Datastreams', value: 'Datastreams', description: 'Include related datastreams' },
     { label: 'HistoricalLocations', value: 'HistoricalLocations', description: 'Include historical locations' },
   ];
-  
+
+  export const SENSORS_EXPAND_OPTIONS: Array<SelectableValue<EntityType>> = [
+    { label: 'Datastreams', value: 'Datastreams', description: 'Include related datastreams' },
+  ];
+export const OBSERVED_PROPERTIES_EXPAND_OPTIONS: Array<SelectableValue<EntityType>> = [
+    { label: 'Datastreams', value: 'Datastreams', description: 'Include related datastreams' },
+  ];
+
   export const DATASTREAMS_EXPAND_OPTIONS: Array<SelectableValue<EntityType>> = [
     { label: 'Observations', value: 'Observations', description: 'Include related observations' },
     { label: 'Thing', value: 'Things', description: 'Include the related Thing' },

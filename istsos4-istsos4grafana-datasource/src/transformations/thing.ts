@@ -2,73 +2,7 @@ import { SensorThingsResponse, IstSOS4Query } from 'types';
 import { createDataFrame } from '@grafana/data';
 import { convertEPSG2056ToWGS84 } from '../utils/utils';
 import { FieldType } from '@grafana/data';
-
-function transformThingsWithDatastreams(things: any[], target: IstSOS4Query) {
-  const thingIds: number[] = [];
-  const thingNames: string[] = [];
-  const thingDescriptions: string[] = [];
-  const datastreamIds: number[] = [];
-  const datastreamNames: string[] = [];
-  const datastreamDescriptions: string[] = [];
-  const datastreamResultTimes: string[] = [];
-
-  things.forEach((thing: any) => {
-    if (thing.Datastreams && thing.Datastreams.length > 0) {
-      thing.Datastreams.forEach((datastream: any) => {
-        thingIds.push(thing['@iot.id']);
-        thingNames.push(thing.name || '');
-        thingDescriptions.push(thing.description || '');
-        datastreamIds.push(datastream['@iot.id']);
-        datastreamNames.push(datastream.name || '');
-        datastreamDescriptions.push(datastream.description || '');
-        datastreamResultTimes.push(datastream.resultTime || '');
-      });
-    }
-  });
-
-  return createDataFrame({
-    refId: target.refId,
-    name: target.alias || 'Things Datastreams',
-    fields: [
-      {
-        name: 'thing_id',
-        type: FieldType.number,
-        values: thingIds,
-      },
-      {
-        name: 'thing_name',
-        type: FieldType.string,
-        values: thingNames,
-      },
-      {
-        name: 'thing_description',
-        type: FieldType.string,
-        values: thingDescriptions,
-      },
-      {
-        name: 'datastream_id',
-        type: FieldType.number,
-        values: datastreamIds,
-      },
-      {
-        name: 'datastream_name',
-        type: FieldType.string,
-        values: datastreamNames,
-      },
-      {
-        name: 'datastream_description',
-        type: FieldType.string,
-        values: datastreamDescriptions,
-      },
-      {
-        name: 'datastream_resultTime',
-        type: FieldType.string,
-        values: datastreamResultTimes,
-      },
-    ],
-  });
-}
-
+import { transformBasicEntity, transformEntityWithDatastreams } from './generic';
 function transformThingsWithLocations(things: any[], target: IstSOS4Query) {
   const latValues: number[] = [];
   const lonValues: number[] = [];
@@ -246,40 +180,6 @@ function transformThingsWithHistoricalLocations(things: any[], target: IstSOS4Qu
   });
 }
 
-function transformThingsBasic(things: any[], target: IstSOS4Query) {
-  const thingIds: number[] = [];
-  const thingNames: string[] = [];
-  const thingDescriptions: string[] = [];
-
-  things.forEach((thing: any) => {
-    thingIds.push(thing['@iot.id']);
-    thingNames.push(thing.name || '');
-    thingDescriptions.push(thing.description || '');
-  });
-
-  return createDataFrame({
-    refId: target.refId,
-    name: target.alias || 'Things',
-    fields: [
-      {
-        name: 'thing_id',
-        type: FieldType.number,
-        values: thingIds,
-      },
-      {
-        name: 'thing_name',
-        type: FieldType.string,
-        values: thingNames,
-      },
-      {
-        name: 'thing_description',
-        type: FieldType.string,
-        values: thingDescriptions,
-      },
-    ],
-  });
-}
-
 export function transformThings(data: SensorThingsResponse | any, target: IstSOS4Query) {
   if (!data || (Array.isArray(data.value) && data.value.length === 0)) {
     return createDataFrame({
@@ -295,8 +195,8 @@ export function transformThings(data: SensorThingsResponse | any, target: IstSOS
   const hasExpandedLocations = target.expand?.some((exp) => exp.entity === 'Locations');
   const hasExpandedHistoricalLocations = target.expand?.some((exp) => exp.entity === 'HistoricalLocations');
 
-  if (hasExpandedDatastreams) return transformThingsWithDatastreams(things, target);
+  if (hasExpandedDatastreams) return transformEntityWithDatastreams(things, target);
   if (hasExpandedLocations) return transformThingsWithLocations(things, target);
   if (hasExpandedHistoricalLocations) return transformThingsWithHistoricalLocations(things, target);
-  return transformThingsBasic(things, target);
+  return transformBasicEntity(things, target);
 }
