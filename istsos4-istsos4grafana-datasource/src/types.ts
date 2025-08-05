@@ -154,15 +154,17 @@ export interface MeasurementFilter extends FilterCondition {
   operator: ComparisonOperator;
 }
 
+export interface PolygonCoordinates {
+  coordinates: [number, number][];
+}
+
 export interface SpatialFilter extends FilterCondition {
   type: 'spatial';
   field: 'observedArea' | 'location';
   operator: SpatialOperator;
   geometryType: 'Point' | 'Polygon' | 'LineString';
   coordinates: any;
-  rings?: {
-    coordinates: [number, number][];
-  }[];
+  rings?: PolygonCoordinates[];
 }
 
 export interface ComplexFilter extends FilterCondition {
@@ -181,7 +183,7 @@ export interface VariableFilter extends FilterCondition {
   field: 'id';
   entity: EntityType;
   operator: ComparisonOperator;
-  variableName: string; // Name of the dashboard variable
+  variableName: string;
 }
 
 // Query builder interface

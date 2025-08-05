@@ -27,6 +27,8 @@
     "@testing-library/jest-dom": "6.1.4",
     "@testing-library/react": "14.0.0",
     "@types/jest": "^29.5.0",
+    "@types/leaflet": "^1.9.20",
+    "@types/leaflet.fullscreen": "^3.0.2",
     "@types/node": "^20.8.7",
     "@types/testing-library__jest-dom": "5.14.8",
     "@types/uuid": "^10.0.0",
@@ -72,9 +74,13 @@
     "@grafana/runtime": "^11.5.3",
     "@grafana/schema": "^11.5.3",
     "@grafana/ui": "^11.5.3",
+    "leaflet": "^1.9.4",
+    "leaflet-fullscreen": "^1.0.2",
     "proj4": "^2.19.5",
     "react": "18.2.0",
     "react-dom": "18.2.0",
+    "terra-draw": "^1.12.0",
+    "terra-draw-leaflet-adapter": "^1.0.3",
     "uuid": "^11.1.0"
   },
   "packageManager": "npm@10.9.2"

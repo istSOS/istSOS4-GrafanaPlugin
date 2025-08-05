@@ -329,9 +329,6 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
   private transformLocations(data: SensorThingsResponse, target: IstSOS4Query) {
     return this.transformGeneric(data, target);
   }
-  private transformObservedProperties(data: SensorThingsResponse, target: IstSOS4Query) {
-    return this.transformGeneric(data, target);
-  }
 
   private transformFeaturesOfInterest(data: SensorThingsResponse, target: IstSOS4Query) {
     return this.transformGeneric(data, target);

@@ -14,9 +14,23 @@ import {
   ComplexFilter,
   EntityType,
   ObservationFilter,
+  PolygonCoordinates,
 } from '../types';
-import { COMMON_FIELDS, OBSERVATION_FIELDS, FILTER_TYPES, COMPARISON_OPERATORS, STRING_OPERATORS, SPATIAL_OPERATORS, TEMPORAL_FUNCTIONS, GEOMETRY_TYPES, MEASUREMENT_FIELDS, TEMPORAL_FIELDS, SPATIAL_FIELDS } from '../utils/constants';
-import { ensureClosedRing,parseCoordinateString } from 'utils/utils';
+import {
+  COMMON_FIELDS,
+  OBSERVATION_FIELDS,
+  FILTER_TYPES,
+  COMPARISON_OPERATORS,
+  STRING_OPERATORS,
+  SPATIAL_OPERATORS,
+  TEMPORAL_FUNCTIONS,
+  GEOMETRY_TYPES,
+  MEASUREMENT_FIELDS,
+  TEMPORAL_FIELDS,
+  SPATIAL_FIELDS,
+} from '../utils/constants';
+import { ensureClosedRing, parseCoordinateString } from 'utils/utils';
+import { MapWithTerraDraw } from './MapWithTerraDraw';
 interface FilterPanelProps {
   entityType: EntityType;
   filters: FilterCondition[];
@@ -29,7 +43,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
   const [newFilterType, setNewFilterType] = useState<FilterType>('basic');
   const getFieldOptions = (filterType?: FilterType): Array<SelectableValue<FilterField>> => {
     const typeToCheck = filterType || newFilterType;
-    
+
     if (typeToCheck === 'basic') {
       return COMMON_FIELDS;
     }
@@ -43,7 +57,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
           case 'temporal':
             return TEMPORAL_FIELDS;
           case 'spatial':
-            return  SPATIAL_FIELDS;
+            return SPATIAL_FIELDS;
           default:
             return COMMON_FIELDS;
         }
@@ -59,7 +73,6 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
       field: getFieldOptions()[0].value!,
       operator: 'eq',
       value: '',
-     
     };
 
     let newFilter: FilterCondition;
@@ -109,12 +122,12 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
   };
 
   const updateFilter = (id: string, updates: Partial<FilterCondition>) => {
-    const updatedFilters = filters.map(filter => filter.id === id ? { ...filter, ...updates } : filter);
+    const updatedFilters = filters.map((filter) => (filter.id === id ? { ...filter, ...updates } : filter));
     onFiltersChange(updatedFilters);
   };
 
   const removeFilter = (id: string) => {
-    const updatedFilters = filters.filter(filter => filter.id !== id);
+    const updatedFilters = filters.filter((filter) => filter.id !== id);
     onFiltersChange(updatedFilters);
   };
 
@@ -125,7 +138,10 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
   const getOperatorOptions = (filter: FilterCondition): Array<SelectableValue<any>> => {
     if (filter.type === 'spatial') {
       return SPATIAL_OPERATORS;
-    } else if (filter.type === 'temporal' && ['year', 'month', 'day', 'hour', 'minute', 'second'].includes(filter.operator)) {
+    } else if (
+      filter.type === 'temporal' &&
+      ['year', 'month', 'day', 'hour', 'minute', 'second'].includes(filter.operator)
+    ) {
       return TEMPORAL_FUNCTIONS;
     } else if (filter.type === 'basic') {
       if (filter.field === '@iot.id') {
@@ -176,33 +192,44 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
             <Select
               options={getFieldOptions(filter.type)}
               value={filter.field}
-              onChange={v => updateFilter(filter.id, { field: v.value! })}
+              onChange={(v) => updateFilter(filter.id, { field: v.value! })}
               width={20}
             />
           </InlineField>
         </InlineFieldRow>
-        
+
         <InlineFieldRow>
           <InlineField label="Filter Type" labelWidth={10}>
             <Select
               options={[
                 { label: 'Date Range', value: 'range', description: 'Filter by date range' },
-                { label: 'Temporal Function', value: 'function', description: 'Filter by temporal function (year, month, etc.)' }
+                {
+                  label: 'Temporal Function',
+                  value: 'function',
+                  description: 'Filter by temporal function (year, month, etc.)',
+                },
               ]}
-              value={filter.operator === 'eq' || filter.operator === 'ne' || 
-                     filter.operator === 'gt' || filter.operator === 'ge' || 
-                     filter.operator === 'lt' || filter.operator === 'le' ? 'range' : 'function'}
-              onChange={v => {
+              value={
+                filter.operator === 'eq' ||
+                filter.operator === 'ne' ||
+                filter.operator === 'gt' ||
+                filter.operator === 'ge' ||
+                filter.operator === 'lt' ||
+                filter.operator === 'le'
+                  ? 'range'
+                  : 'function'
+              }
+              onChange={(v) => {
                 if (v.value === 'range') {
-                  updateFilter(filter.id, { 
+                  updateFilter(filter.id, {
                     operator: 'ge',
                     startDate: filter.startDate || new Date().toISOString(),
-                    endDate: filter.endDate || new Date().toISOString()
+                    endDate: filter.endDate || new Date().toISOString(),
                   } as Partial<TemporalFilter>);
                 } else {
-                  updateFilter(filter.id, { 
+                  updateFilter(filter.id, {
                     operator: 'year',
-                    value: new Date().getFullYear()
+                    value: new Date().getFullYear(),
                   } as Partial<TemporalFilter>);
                 }
               }}
@@ -210,17 +237,20 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
             />
           </InlineField>
         </InlineFieldRow>
-        
-        {(filter.operator === 'eq' || filter.operator === 'ne' || 
-          filter.operator === 'gt' || filter.operator === 'ge' || 
-          filter.operator === 'lt' || filter.operator === 'le') && (
+
+        {(filter.operator === 'eq' ||
+          filter.operator === 'ne' ||
+          filter.operator === 'gt' ||
+          filter.operator === 'ge' ||
+          filter.operator === 'lt' ||
+          filter.operator === 'le') && (
           <>
             <InlineFieldRow>
               <InlineField label="Start Date" labelWidth={10}>
                 <Input
                   type="datetime-local"
                   value={filter.startDate ? new Date(filter.startDate).toISOString().slice(0, 16) : ''}
-                  onChange={e => {
+                  onChange={(e) => {
                     const date = new Date(e.currentTarget.value);
                     updateFilter(filter.id, { startDate: date.toISOString() } as Partial<TemporalFilter>);
                   }}
@@ -228,13 +258,13 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
                 />
               </InlineField>
             </InlineFieldRow>
-            
+
             <InlineFieldRow>
               <InlineField label="End Date" labelWidth={10}>
                 <Input
                   type="datetime-local"
                   value={filter.endDate ? new Date(filter.endDate).toISOString().slice(0, 16) : ''}
-                  onChange={e => {
+                  onChange={(e) => {
                     const date = new Date(e.currentTarget.value);
                     updateFilter(filter.id, { endDate: date.toISOString() } as Partial<TemporalFilter>);
                   }}
@@ -244,28 +274,31 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
             </InlineFieldRow>
           </>
         )}
-        
-        {(filter.operator === 'year' || filter.operator === 'month' || 
-          filter.operator === 'day' || filter.operator === 'hour' || 
-          filter.operator === 'minute' || filter.operator === 'second') && (
+
+        {(filter.operator === 'year' ||
+          filter.operator === 'month' ||
+          filter.operator === 'day' ||
+          filter.operator === 'hour' ||
+          filter.operator === 'minute' ||
+          filter.operator === 'second') && (
           <>
             <InlineFieldRow>
               <InlineField label="Function" labelWidth={10}>
                 <Select
                   options={TEMPORAL_FUNCTIONS}
                   value={filter.operator}
-                  onChange={v => updateFilter(filter.id, { operator: v.value! })}
+                  onChange={(v) => updateFilter(filter.id, { operator: v.value! })}
                   width={20}
                 />
               </InlineField>
             </InlineFieldRow>
-            
+
             <InlineFieldRow>
               <InlineField label="Value" labelWidth={10}>
                 <Input
                   type="number"
                   value={filter.value as number}
-                  onChange={e => updateFilter(filter.id, { value: parseInt(e.currentTarget.value, 10) })}
+                  onChange={(e) => updateFilter(filter.id, { value: parseInt(e.currentTarget.value, 10) })}
                   width={20}
                 />
               </InlineField>
@@ -284,28 +317,28 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
             <Select
               options={getFieldOptions(filter.type)}
               value={filter.field}
-              onChange={v => updateFilter(filter.id, { field: v.value! })}
+              onChange={(v) => updateFilter(filter.id, { field: v.value! })}
               width={20}
             />
           </InlineField>
         </InlineFieldRow>
-        
+
         <InlineFieldRow>
           <InlineField label="Operator" labelWidth={10}>
             <Select
               options={getOperatorOptions(filter)}
               value={filter.operator}
-              onChange={v => updateFilter(filter.id, { operator: v.value! })}
+              onChange={(v) => updateFilter(filter.id, { operator: v.value! })}
               width={20}
             />
           </InlineField>
         </InlineFieldRow>
-        
+
         <InlineFieldRow>
           <InlineField label="Value" labelWidth={10}>
             <Input
               value={filter.value as string}
-              onChange={e => updateFilter(filter.id, { value: e.currentTarget.value })}
+              onChange={(e) => updateFilter(filter.id, { value: e.currentTarget.value })}
               width={20}
             />
           </InlineField>
@@ -322,28 +355,28 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
             <Select
               options={MEASUREMENT_FIELDS}
               value={filter.field}
-              onChange={v => updateFilter(filter.id, { field: v.value! })}
+              onChange={(v) => updateFilter(filter.id, { field: v.value! })}
               width={20}
             />
           </InlineField>
         </InlineFieldRow>
-        
+
         <InlineFieldRow>
           <InlineField label="Operator" labelWidth={10}>
             <Select
               options={COMPARISON_OPERATORS}
               value={filter.operator}
-              onChange={v => updateFilter(filter.id, { operator: v.value! })}
+              onChange={(v) => updateFilter(filter.id, { operator: v.value! })}
               width={20}
             />
           </InlineField>
         </InlineFieldRow>
-        
+
         <InlineFieldRow>
           <InlineField label="Value" labelWidth={10}>
             <Input
               value={filter.value as string}
-              onChange={e => updateFilter(filter.id, { value: e.currentTarget.value })}
+              onChange={(e) => updateFilter(filter.id, { value: e.currentTarget.value })}
               width={20}
             />
           </InlineField>
@@ -352,39 +385,38 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
     );
   };
 
-
   const renderSpatialFilter = (filter: SpatialFilter, index: number) => {
-    const rings = filter.geometryType === 'Polygon' ? (filter.rings || [{ coordinates: [] }]) : [];    
+    const rings = filter.geometryType === 'Polygon' ? filter.rings || [{ coordinates: [] }] : [];
     return (
       <div className={styles.filterForm}>
         <InlineFieldRow>
           <InlineField label="Field" labelWidth={10}>
             <Select
-              options={getFieldOptions(filter.type).filter(f => f.value === 'observedArea')}
+              options={getFieldOptions(filter.type).filter((f) => f.value === 'observedArea')}
               value={filter.field}
-              onChange={v => updateFilter(filter.id, { field: v.value! })}
+              onChange={(v) => updateFilter(filter.id, { field: v.value! })}
               width={20}
             />
           </InlineField>
         </InlineFieldRow>
-        
+
         <InlineFieldRow>
           <InlineField label="Operator" labelWidth={10}>
             <Select
               options={SPATIAL_OPERATORS}
               value={filter.operator}
-              onChange={v => updateFilter(filter.id, { operator: v.value! })}
+              onChange={(v) => updateFilter(filter.id, { operator: v.value! })}
               width={20}
             />
           </InlineField>
         </InlineFieldRow>
-        
+
         <InlineFieldRow>
           <InlineField label="Type" labelWidth={10}>
             <Select
               options={GEOMETRY_TYPES}
               value={filter.geometryType}
-              onChange={v => {
+              onChange={(v) => {
                 // Reset coordinates to valid defaults based on the selected geometry type
                 let defaultCoordinates;
                 let defaultRings;
@@ -394,72 +426,100 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
                     defaultRings = undefined;
                     break;
                   case 'LineString':
-                    defaultCoordinates = [[0, 0], [1, 1]];
+                    defaultCoordinates = [
+                      [0, 0],
+                      [1, 1],
+                    ];
                     defaultRings = undefined;
                     break;
                   case 'Polygon':
                     defaultRings = [{ coordinates: [] }];
-                    defaultCoordinates = [[[0, 0], [1, 0], [1, 1], [0, 0]]];
+                    defaultCoordinates = [
+                      [
+                        [0, 0],
+                        [1, 0],
+                        [1, 1],
+                        [0, 0],
+                      ],
+                    ];
                     break;
                   default:
                     defaultCoordinates = [0, 0];
                     defaultRings = undefined;
                 }
-                updateFilter(filter.id, { 
+                updateFilter(filter.id, {
                   geometryType: v.value! as any,
                   coordinates: defaultCoordinates,
-                  rings: defaultRings
+                  rings: defaultRings,
                 } as Partial<SpatialFilter>);
               }}
               width={20}
             />
           </InlineField>
-        </InlineFieldRow>        
+        </InlineFieldRow>
+          <div style={{ marginTop: '15px', marginBottom: '15px' }}>
+            <label
+              style={{
+                fontSize: '12px',
+                fontWeight: 500,
+                marginBottom: '8px',
+                display: 'block',
+                color: '#8e8e8e',
+              }}
+            >
+              Interactive Map - Click to draw the geometry
+            </label>
+            <div style={{ width: '100%' }}>
+              <MapWithTerraDraw
+                geometryType={filter.geometryType}
+                onCoordinatesChange={(coords) => {
+                  if (filter.geometryType === 'Point') {
+                    updateFilter(filter.id, { coordinates: coords } as Partial<SpatialFilter>);
+                  } else if (filter.geometryType === 'Polygon') {
+                    const newRings: PolygonCoordinates[] = [{ coordinates: coords }];
+                    updateFilter(filter.id, {
+                      rings: newRings,
+                      coordinates: [coords],
+                    } as Partial<SpatialFilter>);
+                  } else if (filter.geometryType === 'LineString') {
+                    updateFilter(filter.id, { coordinates: coords } as Partial<SpatialFilter>);
+                  }
+                }}
+                initialCoordinates={filter.coordinates}
+              />
+            </div>
+          </div>
         {filter.geometryType === 'Polygon' && (
           <>
-            <InlineFieldRow>
-              <InlineField label="Number of Rings" labelWidth={18} tooltip="1 outer ring + N inner rings (holes)">
-                <Input
-                  type="number"
-                  min={1}
-                  value={rings.length}
-                  onChange={e => {
-                    const numRings = Math.max(1, parseInt(e.currentTarget.value) || 1);
-                    const newRings = [...rings];                    
-                    while (newRings.length < numRings) {
-                      newRings.push({ coordinates: [] });
-                    }
-                    while (newRings.length > numRings) {
-                      newRings.pop();
-                    }
-                    
-                    updateFilter(filter.id, { rings: newRings } as Partial<SpatialFilter>);
-                  }}
-                  width={20}
-                />
-              </InlineField>
-            </InlineFieldRow>
-            
             {rings.map((ring, ringIndex) => (
-              <div key={ringIndex} style={{ marginLeft: '20px', marginBottom: '10px', padding: '10px', border: '1px solid #444', borderRadius: '4px' }}>                
+              <div
+                key={ringIndex}
+                style={{
+                  marginLeft: '20px',
+                  marginBottom: '10px',
+                  padding: '10px',
+                  border: '1px solid #444',
+                  borderRadius: '4px',
+                }}
+              >
                 <InlineFieldRow>
-                  <InlineField 
-                    label="Coordinates" 
-                    labelWidth={15} 
+                  <InlineField
+                    label="Coordinates"
+                    labelWidth={15}
                     tooltip="Enter coordinates as: x1,y1, x2,y2, ..., xn,yn"
                   >
                     <TextArea
-                      value={ring.coordinates.map(coord => `${coord[0]},${coord[1]}`).join(', ')}
-                      onChange={e => {
+                      value={ring.coordinates.map((coord) => `${coord[0]},${coord[1]}`).join(', ')}
+                      onChange={(e) => {
                         const coordString = e.currentTarget.value;
                         const parsedCoords = parseCoordinateString(coordString);
                         const closedCoords = ensureClosedRing(parsedCoords);
                         const newRings = [...rings];
-                        newRings[ringIndex] = { coordinates: closedCoords };                        
-                        const geoJsonCoords = newRings.map(r => r.coordinates);
-                        updateFilter(filter.id, { 
+                        newRings[ringIndex] = { coordinates: closedCoords };
+                        const geoJsonCoords = newRings.map((r) => r.coordinates);
+                        updateFilter(filter.id, {
                           rings: newRings,
-                          coordinates: geoJsonCoords
+                          coordinates: geoJsonCoords,
                         } as Partial<SpatialFilter>);
                       }}
                       rows={3}
@@ -470,47 +530,32 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
               </div>
             ))}
           </>
-        )}        
+        )}
         {filter.geometryType !== 'Polygon' && (
           <InlineFieldRow>
-            <InlineField 
-              label="Coordinates" 
-              labelWidth={10} 
+            <InlineField
+              label="Coordinates"
+              labelWidth={10}
               tooltip={
-                filter.geometryType === 'Point' ? "Enter as [longitude, latitude]" :
-                filter.geometryType === 'LineString' ? "Enter as array of points [[lon1, lat1], [lon2, lat2], ...]" :
-                "Enter as array of rings [[[lon1, lat1], [lon2, lat2], ...]], first and last point must be identical"
+                filter.geometryType === 'Point'
+                  ? 'Enter as [longitude, latitude]'
+                  : 'Enter as array of points [[lon1, lat1], [lon2, lat2], ...]'
               }
             >
               <TextArea
                 value={JSON.stringify(filter.coordinates)}
-                onChange={e => {
+                onChange={(e) => {
                   try {
                     const coords = JSON.parse(e.currentTarget.value);
                     updateFilter(filter.id, { coordinates: coords } as Partial<SpatialFilter>);
-                  } catch (error) {
-                 
-                  }
+                  } catch (error) {}
                 }}
-                              rows={3}
+                rows={3}
                 placeholder={
-                  filter.geometryType === 'Point' ? "[0, 0]" :
-                  filter.geometryType === 'LineString' ? "[[0, 0], [1, 1]]" :
-                  "[[[0, 0], [1, 0], [1, 1], [0, 0]]]"
+                  filter.geometryType === 'Point' 
+                    ? '[0, 0]' 
+                    : '[[0, 0], [1, 1]]'
                 }
-              />
-            </InlineField>
-          </InlineFieldRow>
-        )}
-        
-        {filter.operator === 'st_distance' && (
-          <InlineFieldRow>
-            <InlineField label="Distance" labelWidth={10}>
-              <Input
-                type="number"
-                value={filter.value as string}
-                onChange={e => updateFilter(filter.id, { value: parseFloat(e.currentTarget.value) })}
-                width={20}
               />
             </InlineField>
           </InlineFieldRow>
@@ -526,7 +571,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
           <InlineField label="Expression" labelWidth={10} tooltip="Enter a valid OData filter expression">
             <TextArea
               value={filter.expression || ''}
-              onChange={e => updateFilter(filter.id, { expression: e.currentTarget.value })}
+              onChange={(e) => updateFilter(filter.id, { expression: e.currentTarget.value })}
               rows={5}
               placeholder="e.g., unitOfMeasurement/name eq 'degree Celsius' and result gt 20"
             />
@@ -554,7 +599,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
             <Select
               options={OBSERVATION_FIELDS}
               value={filter.field}
-              onChange={v => {
+              onChange={(v) => {
                 const newValue = v.value === 'result' ? '0' : new Date().toISOString();
                 updateFilter(filter.id, { field: v.value!, value: newValue });
               }}
@@ -562,31 +607,31 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
             />
           </InlineField>
         </InlineFieldRow>
-        
+
         <InlineFieldRow>
           <InlineField label="Operator" labelWidth={10}>
             <Select
               options={COMPARISON_OPERATORS}
               value={filter.operator}
-              onChange={v => updateFilter(filter.id, { operator: v.value! })}
+              onChange={(v) => updateFilter(filter.id, { operator: v.value! })}
               width={20}
             />
           </InlineField>
         </InlineFieldRow>
-        
+
         <InlineFieldRow>
           <InlineField label="Value" labelWidth={10}>
             {filter.field === 'result' ? (
               <Input
                 value={filter.value as string}
-                onChange={e => updateFilter(filter.id, { value: e.currentTarget.value })}
+                onChange={(e) => updateFilter(filter.id, { value: e.currentTarget.value })}
                 width={20}
               />
             ) : (
               <Input
                 type="datetime-local"
                 value={formatDateForInput(filter.value as string)}
-                onChange={e => {
+                onChange={(e) => {
                   try {
                     const date = new Date(e.currentTarget.value);
                     updateFilter(filter.id, { value: date.toISOString() });
@@ -612,7 +657,13 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
             Clear All
           </Button>
           {!showAddFilter && (
-            <Button variant="primary" size="sm" onClick={() => setShowAddFilter(true)} icon="plus" className={styles.addButton}>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setShowAddFilter(true)}
+              icon="plus"
+              className={styles.addButton}
+            >
               Add Filter
             </Button>
           )}
@@ -626,7 +677,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
               <Select
                 options={getPossibleFilters(entityType)}
                 value={newFilterType}
-                onChange={v => setNewFilterType(v.value!)}
+                onChange={(v) => setNewFilterType(v.value!)}
                 width={20}
               />
             </InlineField>
@@ -642,25 +693,26 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
         </FieldSet>
       )}
 
-      {filters.filter(f=> f.type!=='variable').length === 0 ? (
+      {filters.filter((f) => f.type !== 'variable').length === 0 ? (
         <div className={styles.emptyState}>No filters applied. Click "Add Filter" to create one.</div>
       ) : (
         <div className={styles.filterList}>
-          {filters.filter(f=> f.type!=='variable').map((filter, index) => (
-            <FieldSet
-              key={filter.id}
-              label={`${filter.type.charAt(0).toUpperCase() + filter.type.slice(1)} Filter`}
-              className={styles.filterItem}
-            >
-              {renderFilterForm(filter, index)}
-              <div className={styles.filterActions}>
-
-                <Button variant="destructive" size="sm" onClick={() => removeFilter(filter.id)} icon="trash-alt">
-                  Remove
-                </Button>
-              </div>
-            </FieldSet>
-          ))}
+          {filters
+            .filter((f) => f.type !== 'variable')
+            .map((filter, index) => (
+              <FieldSet
+                key={filter.id}
+                label={`${filter.type.charAt(0).toUpperCase() + filter.type.slice(1)} Filter`}
+                className={styles.filterItem}
+              >
+                {renderFilterForm(filter, index)}
+                <div className={styles.filterActions}>
+                  <Button variant="destructive" size="sm" onClick={() => removeFilter(filter.id)} icon="trash-alt">
+                    Remove
+                  </Button>
+                </div>
+              </FieldSet>
+            ))}
         </div>
       )}
     </div>
@@ -714,4 +766,4 @@ const getStyles = (theme: GrafanaTheme2) => {
       margin-top: ${theme.spacing(1)};
     `,
   };
-}; 
+};

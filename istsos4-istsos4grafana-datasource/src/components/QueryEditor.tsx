@@ -19,8 +19,6 @@ import { FilterPanel } from './FilterPanel';
 import { VariablesPanel } from './VariablesPanel';
 import {
   ENTITY_OPTIONS,
-  THINGS_EXPAND_OPTIONS,
-  DATASTREAMS_EXPAND_OPTIONS,
   RESULT_FORMAT_OPTIONS,
 } from '../utils/constants';
 import { compareEntityNames, getStyles,getExpandOptions } from '../utils/utils';
