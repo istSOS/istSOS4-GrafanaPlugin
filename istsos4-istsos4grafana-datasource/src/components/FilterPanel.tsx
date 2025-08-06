@@ -15,6 +15,7 @@ import {
   EntityType,
   ObservationFilter,
   PolygonCoordinates,
+  EntityFilter,
 } from '../types';
 import {
   COMMON_FIELDS,
@@ -28,6 +29,7 @@ import {
   MEASUREMENT_FIELDS,
   TEMPORAL_FIELDS,
   SPATIAL_FIELDS,
+  ENTITY_OPTIONS,
 } from '../utils/constants';
 import { ensureClosedRing, parseCoordinateString } from 'utils/utils';
 import { MapWithTerraDraw } from './MapWithTerraDraw';
@@ -40,13 +42,26 @@ interface FilterPanelProps {
 export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, onFiltersChange }) => {
   const styles = useStyles2(getStyles);
   const [showAddFilter, setShowAddFilter] = useState(false);
-  const [newFilterType, setNewFilterType] = useState<FilterType>('basic');
+  const [newFilterType, setNewFilterType] = useState<FilterType>('basic');  
+  const getAvailableEntityFilterOptions = (selectedEntity: EntityType): Array<SelectableValue<EntityType>> => {
+    let availableOptions: Array<string> = [];
+    switch (selectedEntity) {
+      case 'Datastreams':
+        availableOptions=['Things', 'Sensors', 'ObservedProperties'];
+        return ENTITY_OPTIONS.filter(op => op.value && availableOptions.includes(op.value));
+      case 'Locations':
+      case 'HistoricalLocations':
+        availableOptions=['Things'];
+        return ENTITY_OPTIONS.filter(op => op.value && availableOptions.includes(op.value));
+      default:
+        return [];
+    }
+  };
+
   const getFieldOptions = (filterType?: FilterType): Array<SelectableValue<FilterField>> => {
     const typeToCheck = filterType || newFilterType;
-
-    if (typeToCheck === 'basic') {
-      return COMMON_FIELDS;
-    }
+    if (typeToCheck === 'basic' || typeToCheck === 'entity') return COMMON_FIELDS;
+    let availableFields: Array<string>=[];
     switch (entityType) {
       case 'Observations':
         return OBSERVATION_FIELDS;
@@ -57,10 +72,20 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
           case 'temporal':
             return TEMPORAL_FIELDS;
           case 'spatial':
-            return SPATIAL_FIELDS;
+            availableFields=['observedArea'];
+            return SPATIAL_FIELDS.filter((f) => f.value && availableFields.includes(f.value));
           default:
             return COMMON_FIELDS;
         }
+      case 'Locations':
+        switch (typeToCheck) {
+          case 'spatial':
+            availableFields = ['location'];
+            return SPATIAL_FIELDS.filter((f) => f.value && availableFields.includes(f.value));
+          default:
+            return COMMON_FIELDS;
+        }
+
       default:
         return COMMON_FIELDS;
     }
@@ -167,18 +192,25 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
         return renderComplexFilter(filter as ComplexFilter, index);
       case 'Observation':
         return renderObservationFilter(filter as ObservationFilter, index);
+      case 'entity':
+        return renderEntityFilter(filter as EntityFilter, index);
       default:
         return null;
     }
   };
 
   const getPossibleFilters = (entityType: EntityType): Array<SelectableValue<FilterType>> => {
+    let available: Array<string> = [];
     switch (entityType) {
       case 'Things':
-        // Only Basic Filter is allowed for Things (for now)
-        return [FILTER_TYPES[0]] as Array<SelectableValue<FilterType>>;
+        available = ['basic'];
+        return FILTER_TYPES.filter((filterType) => filterType.value && available.includes(filterType.value));
       case 'Datastreams':
         return FILTER_TYPES;
+      case 'Locations':
+      case 'HistoricalLocations':
+        available = ['basic', 'spatial', 'entity'];
+        return FILTER_TYPES.filter((filterType) => filterType.value && available.includes(filterType.value));
       default:
         return FILTER_TYPES;
     }
@@ -392,7 +424,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
         <InlineFieldRow>
           <InlineField label="Field" labelWidth={10}>
             <Select
-              options={getFieldOptions(filter.type).filter((f) => f.value === 'observedArea')}
+              options={getFieldOptions(filter.type)}
               value={filter.field}
               onChange={(v) => updateFilter(filter.id, { field: v.value! })}
               width={20}
@@ -414,7 +446,11 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
         <InlineFieldRow>
           <InlineField label="Type" labelWidth={10}>
             <Select
-              options={GEOMETRY_TYPES}
+              options={
+                filter.operator === 'st_intersects'
+                  ? GEOMETRY_TYPES
+                  : GEOMETRY_TYPES.filter((g) => g.value === 'Polygon')
+              }
               value={filter.geometryType}
               onChange={(v) => {
                 // Reset coordinates to valid defaults based on the selected geometry type
@@ -457,38 +493,38 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
             />
           </InlineField>
         </InlineFieldRow>
-          <div style={{ marginTop: '15px', marginBottom: '15px' }}>
-            <label
-              style={{
-                fontSize: '12px',
-                fontWeight: 500,
-                marginBottom: '8px',
-                display: 'block',
-                color: '#8e8e8e',
+        <div style={{ marginTop: '15px', marginBottom: '15px' }}>
+          <label
+            style={{
+              fontSize: '12px',
+              fontWeight: 500,
+              marginBottom: '8px',
+              display: 'block',
+              color: '#8e8e8e',
+            }}
+          >
+            Interactive Map - Click to draw the geometry
+          </label>
+          <div style={{ width: '100%' }}>
+            <MapWithTerraDraw
+              geometryType={filter.geometryType}
+              onCoordinatesChange={(coords) => {
+                if (filter.geometryType === 'Point') {
+                  updateFilter(filter.id, { coordinates: coords } as Partial<SpatialFilter>);
+                } else if (filter.geometryType === 'Polygon') {
+                  const newRings: PolygonCoordinates[] = [{ coordinates: coords }];
+                  updateFilter(filter.id, {
+                    rings: newRings,
+                    coordinates: [coords],
+                  } as Partial<SpatialFilter>);
+                } else if (filter.geometryType === 'LineString') {
+                  updateFilter(filter.id, { coordinates: coords } as Partial<SpatialFilter>);
+                }
               }}
-            >
-              Interactive Map - Click to draw the geometry
-            </label>
-            <div style={{ width: '100%' }}>
-              <MapWithTerraDraw
-                geometryType={filter.geometryType}
-                onCoordinatesChange={(coords) => {
-                  if (filter.geometryType === 'Point') {
-                    updateFilter(filter.id, { coordinates: coords } as Partial<SpatialFilter>);
-                  } else if (filter.geometryType === 'Polygon') {
-                    const newRings: PolygonCoordinates[] = [{ coordinates: coords }];
-                    updateFilter(filter.id, {
-                      rings: newRings,
-                      coordinates: [coords],
-                    } as Partial<SpatialFilter>);
-                  } else if (filter.geometryType === 'LineString') {
-                    updateFilter(filter.id, { coordinates: coords } as Partial<SpatialFilter>);
-                  }
-                }}
-                initialCoordinates={filter.coordinates}
-              />
-            </div>
+              initialCoordinates={filter.coordinates}
+            />
           </div>
+        </div>
         {filter.geometryType === 'Polygon' && (
           <>
             {rings.map((ring, ringIndex) => (
@@ -551,11 +587,7 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
                   } catch (error) {}
                 }}
                 rows={3}
-                placeholder={
-                  filter.geometryType === 'Point' 
-                    ? '[0, 0]' 
-                    : '[[0, 0], [1, 1]]'
-                }
+                placeholder={filter.geometryType === 'Point' ? '[0, 0]' : '[[0, 0], [1, 1]]'}
               />
             </InlineField>
           </InlineFieldRow>
@@ -642,6 +674,57 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
                 width={20}
               />
             )}
+          </InlineField>
+        </InlineFieldRow>
+      </div>
+    );
+  };
+
+  const renderEntityFilter = (filter: EntityFilter, index: number) => {
+    const availableEntities = getAvailableEntityFilterOptions(entityType);
+    
+    return (
+      <div className={styles.filterForm}>
+        <InlineFieldRow>
+          <InlineField label="Related Entity" labelWidth={10}>
+            <Select
+              options={availableEntities}
+              value={filter.entity}
+              onChange={v => updateFilter(filter.id, { entity: v.value! })}
+              width={20}
+            />
+          </InlineField>
+        </InlineFieldRow>
+        
+        <InlineFieldRow>
+          <InlineField label="Field" labelWidth={10}>
+            <Select
+              options={getFieldOptions(filter.type)}
+              value={filter.field}
+              onChange={v => updateFilter(filter.id, { field: v.value! })}
+              width={20}
+            />
+          </InlineField>
+        </InlineFieldRow>
+        
+        <InlineFieldRow>
+          <InlineField label="Operator" labelWidth={10}>
+            <Select
+              options={filter.field === '@iot.id' ? COMPARISON_OPERATORS : [...COMPARISON_OPERATORS, ...STRING_OPERATORS]}
+              value={filter.operator}
+              onChange={v => updateFilter(filter.id, { operator: v.value! })}
+              width={20}
+            />
+          </InlineField>
+        </InlineFieldRow>
+        
+        <InlineFieldRow>
+          <InlineField label="Value" labelWidth={10}>
+            <Input
+              value={filter.value as string}
+              onChange={e => updateFilter(filter.id, { value: e.currentTarget.value })}
+              width={20}
+            />
           </InlineField>
         </InlineFieldRow>
       </div>

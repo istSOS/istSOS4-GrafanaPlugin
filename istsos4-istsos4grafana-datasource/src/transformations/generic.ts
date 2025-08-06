@@ -1,6 +1,6 @@
 import { createDataFrame, FieldType } from '@grafana/data';
 import { IstSOS4Query } from 'types';
-import { getSingularEntityname } from 'utils/utils';
+import { getSingularEntityName } from 'utils/utils';
 export function transformEntityWithDatastreams(entities: any[], target: IstSOS4Query) {
   const Ids: number[] = [];
   const Names: string[] = [];
@@ -9,7 +9,7 @@ export function transformEntityWithDatastreams(entities: any[], target: IstSOS4Q
   const datastreamNames: string[] = [];
   const datastreamDescriptions: string[] = [];
   const datastreamResultTimes: string[] = [];
-  const type = getSingularEntityname(target.entity).charAt(0).toLowerCase() + getSingularEntityname(target.entity).slice(1);
+  const type = getSingularEntityName(target.entity).charAt(0).toLowerCase() + getSingularEntityName(target.entity).slice(1);
   entities.forEach((entity: any) => {
     if (entity.Datastreams && entity.Datastreams.length > 0) {
       entity.Datastreams.forEach((datastream: any) => {
@@ -71,7 +71,7 @@ export function transformBasicEntity(things: any[], target: IstSOS4Query) {
   const Ids: number[] = [];
   const Names: string[] = [];
   const Descriptions: string[] = [];
-  const type = getSingularEntityname(target.entity).charAt(0).toLowerCase() + getSingularEntityname(target.entity).slice(1);
+  const type = getSingularEntityName(target.entity).charAt(0).toLowerCase() + getSingularEntityName(target.entity).slice(1);
 
   things.forEach((thing: any) => {
     Ids.push(thing['@iot.id']);

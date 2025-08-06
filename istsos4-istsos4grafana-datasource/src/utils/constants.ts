@@ -70,6 +70,7 @@ export const FILTER_TYPES: Array<SelectableValue<FilterType>> = [
   { label: 'Spatial', value: 'spatial', description: 'Filter by geographic location' },
   { label: 'Complex', value: 'complex', description: 'Custom OData filter expression' },
   { label:'Observation', value: 'Observation', description: 'Filter by observation properties' },
+  { label: 'Entity', value: 'entity', description: 'Filter by related entity properties (e.g., Sensor/id, Thing/name)' },
 ];
 
 export const COMPARISON_OPERATORS: Array<SelectableValue<ComparisonOperator>> = [
@@ -90,7 +91,6 @@ export const STRING_OPERATORS: Array<SelectableValue<StringOperator>> = [
 export const SPATIAL_OPERATORS: Array<SelectableValue<SpatialOperator>> = [
   { label: 'Within', value: 'st_within', description: 'Location is within the specified geometry' },
   { label: 'Intersects', value: 'st_intersects', description: 'Location intersects with the specified geometry' },
-  // { label: 'Distance', value: 'st_distance', description: 'Distance between location and specified point' },
 ];
 
 export const TEMPORAL_FUNCTIONS: Array<SelectableValue<TemporalFunction>> = [

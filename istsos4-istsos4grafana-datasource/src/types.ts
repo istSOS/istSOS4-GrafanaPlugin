@@ -103,7 +103,9 @@ export type FilterType =
   | 'spatial' 
   | 'complex'
   | 'Observation'
-  | 'variable';
+  | 'variable'
+  | 'entity';
+
 
 export type FilterField = 
   | 'name'
@@ -184,6 +186,13 @@ export interface VariableFilter extends FilterCondition {
   entity: EntityType;
   operator: ComparisonOperator;
   variableName: string;
+}
+
+export interface EntityFilter extends FilterCondition {
+  type: 'entity';
+  field: '@iot.id' | 'name' | 'description';
+  operator: ComparisonOperator;
+  entity: EntityType;
 }
 
 // Query builder interface

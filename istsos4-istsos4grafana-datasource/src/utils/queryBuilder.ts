@@ -1,5 +1,5 @@
-import { IstSOS4Query, EntityType, QueryBuilder as MyQueryBuilder, OrderByOption, FilterCondition, TemporalFilter, SpatialFilter, ObservationFilter,VariableFilter } from '../types';
-import { compareEntityNames } from './utils';
+import { IstSOS4Query, EntityType, QueryBuilder as MyQueryBuilder, OrderByOption, FilterCondition, TemporalFilter, SpatialFilter, ObservationFilter,VariableFilter, EntityFilter } from '../types';
+import { compareEntityNames,getSingularEntityName } from './utils';
 
 /*
 This file contains the Query Builder class.
@@ -148,7 +148,7 @@ export function buildODataQuery(query: IstSOS4Query, encode: boolean=true): stri
         expandStr += '($expand=Locations)';
         // TODO: Add support for other entities that have a subQuery
         // else if may be wrong here, Fix it later
-      } else if (exp.subQuery) {
+      } if (exp.subQuery) {
         const subParams: string[] = [];
         if (exp.subQuery.filter) subParams.push(`$filter=${exp.subQuery.filter}`);
         if (exp.subQuery.select) subParams.push(`$select=${exp.subQuery.select.join(',')}`);
@@ -227,6 +227,8 @@ export function buildFilterExpression(filters: FilterCondition[]): string {
         return buildObservationFilter(filter as ObservationFilter);
       case 'variable':
         return buildVariableFilter(filter as VariableFilter);
+      case 'entity':
+        return buildEntityFilter(filter as EntityFilter);
       default:
         return '';
     }
@@ -286,6 +288,20 @@ function buildVariableFilter(filter: VariableFilter): string {
   }
   return '';
 }
+
+/**
+ * Builds an entity filter expression
+ */
+function buildEntityFilter(filter: EntityFilter): string {
+  if (!filter.operator || !filter.entity || filter.value === null || filter.value === undefined || filter.value === '') {
+    return '';
+  }
+  let entityPath: string = getSingularEntityName(filter.entity);
+  const path = `${entityPath}/${filter.field}`;
+  const value = formatValue(filter.value);
+  return `${path} ${filter.operator} ${value}`;
+}
+
 /**
  * Builds a spatial filter expression
  */

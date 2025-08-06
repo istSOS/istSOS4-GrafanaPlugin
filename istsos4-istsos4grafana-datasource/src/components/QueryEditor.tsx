@@ -60,19 +60,13 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
       if (!newQuery.expand.some((exp) => exp.entity === 'Observations')) {
         newQuery.expand.push({ entity: 'Observations' });
       }
-
-      // Move any Observation filters to the Observations expansion if they exist
-      // if (newQuery.filters && newQuery.filters.length > 0) {
-      //   const observationFilters = newQuery.filters.filter(f => f.type === 'Observation');
-      //   const otherFilters = newQuery.filters.filter(f => f.type !== 'Observation');
-
-      //   if (observationFilters.length > 0) {
-      //     // Keep only non-Observation filters in the main filters array
-      //     newQuery.filters = otherFilters;
-      //   }
-      // }
     }
-
+    if(value.value === 'HistoricalLocations') {
+      newQuery.expand = newQuery.expand || [];
+      if (!newQuery.expand.some((exp) => exp.entity === 'Locations')) {
+        newQuery.expand.push({ entity: 'Locations' });
+      }
+    }
     onChange(newQuery);
   };
 
