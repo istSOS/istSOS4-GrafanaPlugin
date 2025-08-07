@@ -21,6 +21,8 @@ import { transformDatastreams } from './transformations/datastream';
 import { transformThings } from 'transformations/thing';
 import { transformSensors } from 'transformations/sensor';
 import { transformObservedProperties } from 'transformations/observed_property';
+import { transformLocations } from 'transformations/location';
+import { transformHistoricalLocations } from 'transformations/historical_locations';
 
 export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions> {
   url?: string;
@@ -273,7 +275,7 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
       case 'Things':
         return transformThings(data, target);
       case 'Locations':
-        return this.transformLocations(data, target);
+        return transformLocations(data, target);
       case 'Sensors':
         return transformSensors(data, target);
       case 'ObservedProperties':
@@ -281,7 +283,7 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
       case 'FeaturesOfInterest':
         return this.transformFeaturesOfInterest(data, target);
       case 'HistoricalLocations':
-        return this.transformHistoricalLocations(data, target);
+        return transformHistoricalLocations(data, target);
       default:
         return this.transformGeneric(data, target);
     }
@@ -324,17 +326,7 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
     });
   }
 
-
-
-  private transformLocations(data: SensorThingsResponse, target: IstSOS4Query) {
-    return this.transformGeneric(data, target);
-  }
-
   private transformFeaturesOfInterest(data: SensorThingsResponse, target: IstSOS4Query) {
-    return this.transformGeneric(data, target);
-  }
-
-  private transformHistoricalLocations(data: SensorThingsResponse, target: IstSOS4Query) {
     return this.transformGeneric(data, target);
   }
 

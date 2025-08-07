@@ -32,8 +32,6 @@ export const MapWithTerraDraw: React.FC<MapWithTerraDrawProps> = ({
     map.on('fullscreenchange', () => {
       map.invalidateSize();
     });
-
-    // Add tile layer
     L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
     const adapter = new TerraDrawLeafletAdapter({ map, lib: L });
     const terraDraw = new TerraDraw({
@@ -90,8 +88,6 @@ export const MapWithTerraDraw: React.FC<MapWithTerraDrawProps> = ({
       
       }
     };
-
-    // Listen for drawing completion events
     const map = mapInst.current;
     map.on('click', handleChange);
     

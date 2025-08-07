@@ -1,6 +1,6 @@
 import { createDataFrame, FieldType } from '@grafana/data';
 import { IstSOS4Query } from 'types';
-import { getSingularEntityName } from 'utils/utils';
+import { getSingularEntityName,convertEPSG2056ToWGS84 } from 'utils/utils';
 export function transformEntityWithDatastreams(entities: any[], target: IstSOS4Query) {
   const Ids: number[] = [];
   const Names: string[] = [];
@@ -101,4 +101,45 @@ export function transformBasicEntity(things: any[], target: IstSOS4Query) {
       },
     ],
   });
+}
+
+export function getTransformedGeometry(location: any): any {
+  let transformedGeometry;
+  switch (location.location.type) {
+    case 'Point':
+      const coords = location.location.coordinates;
+      const [lon, lat] = convertEPSG2056ToWGS84(coords[0], coords[1]);
+      transformedGeometry = {
+        type: 'Point',
+        coordinates: [lon, lat],
+      };
+      break;
+    case 'Polygon':
+      const transformedCoordinates = location.location.coordinates.map((ring: number[][]) =>
+        ring.map((coord: number[]) => {
+          const [lon, lat] = convertEPSG2056ToWGS84(coord[0], coord[1]);
+          return [lon, lat];
+        })
+      );
+      transformedGeometry = {
+        type: 'Polygon',
+        coordinates: transformedCoordinates,
+      };
+      break;
+
+    case 'LineString':
+      const transformedLineCoords = location.location.coordinates.map((coord: number[]) => {
+        const [lon, lat] = convertEPSG2056ToWGS84(coord[0], coord[1]);
+        return [lon, lat];
+      });
+      transformedGeometry = {
+        type: 'LineString',
+        coordinates: transformedLineCoords,
+      };
+      break;
+    default:
+      console.warn(`Unsupported geometry type: ${location.location.type}`);
+      return;
+  }
+  return transformedGeometry;
 }

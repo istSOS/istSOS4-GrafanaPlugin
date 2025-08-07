@@ -1,8 +1,7 @@
 import { SensorThingsResponse, IstSOS4Query } from 'types';
 import { createDataFrame } from '@grafana/data';
-import { convertEPSG2056ToWGS84 } from '../utils/utils';
 import { FieldType } from '@grafana/data';
-import { transformBasicEntity, transformEntityWithDatastreams } from './generic';
+import { transformBasicEntity, transformEntityWithDatastreams, getTransformedGeometry } from './generic';
 function transformThingsWithLocations(things: any[], target: IstSOS4Query) {
   const geojsonValues: string[] = [];
   const thingIds: number[] = [];
@@ -10,52 +9,11 @@ function transformThingsWithLocations(things: any[], target: IstSOS4Query) {
   const thingDescriptions: string[] = [];
   const locationNames: string[] = [];
   const locationTypes: string[] = [];
-  const values: number[] = [];
-
-  console.log('Transforming Things with Locations:', things);
 
   things.forEach((thing: any, index: number) => {
     if (thing.Locations && thing.Locations.length > 0) {
       thing.Locations.forEach((location: any) => {
-        let transformedGeometry: any = null;
-
-        switch (location.location.type) {
-          case 'Point':
-            const coords = location.location.coordinates;
-            const [lon, lat] = convertEPSG2056ToWGS84(coords[0], coords[1]);
-            transformedGeometry = {
-              type: 'Point',
-              coordinates: [lon, lat]
-            };
-            break;
-          case 'Polygon':
-            const transformedCoordinates = location.location.coordinates.map((ring: number[][]) => 
-              ring.map((coord: number[]) => {
-                const [lon, lat] = convertEPSG2056ToWGS84(coord[0], coord[1]);
-                return [lon, lat];
-              })
-            );
-            transformedGeometry = {
-              type: 'Polygon',
-              coordinates: transformedCoordinates
-            };
-            break;
-
-          case 'LineString':
-            const transformedLineCoords = location.location.coordinates.map((coord: number[]) => {
-              const [lon, lat] = convertEPSG2056ToWGS84(coord[0], coord[1]);
-              return [lon, lat];
-            });
-            transformedGeometry = {
-              type: 'LineString',
-              coordinates: transformedLineCoords
-            };
-            break;
-          default:
-            console.warn(`Unsupported geometry type: ${location.location.type}`);
-            return;
-        }
-
+        let transformedGeometry: any = getTransformedGeometry(location);
         if (transformedGeometry) {
           geojsonValues.push(JSON.stringify(transformedGeometry));
           thingIds.push(thing['@iot.id']);
@@ -63,7 +21,6 @@ function transformThingsWithLocations(things: any[], target: IstSOS4Query) {
           thingDescriptions.push(thing.description || '');
           locationNames.push(location.name || '');
           locationTypes.push(location.location.type);
-          values.push(index + 1);
         }
       });
     }
@@ -121,109 +78,101 @@ function transformThingsWithLocations(things: any[], target: IstSOS4Query) {
           displayName: 'Geometry Type',
         },
       },
-      {
-        name: 'value',
-        type: FieldType.number,
-        values: values,
-        config: {
-          displayName: 'Value',
-        },
-      },
     ],
   });
 }
 
 function transformThingsWithHistoricalLocations(things: any[], target: IstSOS4Query) {
-  const timeValues: number[] = [];
-  const latValues: number[] = [];
-  const lonValues: number[] = [];
-  const locationNames: string[] = [];
-  const locationDescriptions: string[] = [];
+  const geojsonValues: string[] = [];
   const thingIds: number[] = [];
   const thingNames: string[] = [];
   const thingDescriptions: string[] = [];
-
+  const locationNames: string[] = [];
+  const locationTypes: string[] = [];
+  const timeValues: number[] = [];
   things.forEach((thing: any) => {
     if (thing.HistoricalLocations && thing.HistoricalLocations.length > 0) {
       thing.HistoricalLocations.forEach((histLoc: any) => {
         if (histLoc.Locations && histLoc.Locations.length > 0) {
-            histLoc.Locations.forEach((location: any) => {
-            thingIds.push(thing['@iot.id']);
-            thingNames.push(thing.name || '');
-            thingDescriptions.push(thing.description || '');
-            timeValues.push(new Date(histLoc.time).getTime());
-            locationNames.push(location.name || '');
-            locationDescriptions.push(location.description || '');
-            const coords = location.location.coordinates;
-            const x = coords[0];
-            const y = coords[1];
-            const [lon, lat] = convertEPSG2056ToWGS84(x, y);
-            lonValues.push(lon);
-            latValues.push(lat);
-        });
-      }
-    });
-  }
-});
+          histLoc.Locations.forEach((location: any) => {
+            let transformedGeometry: any = getTransformedGeometry(location);
+            if (transformedGeometry) {
+              geojsonValues.push(JSON.stringify(transformedGeometry));
+              thingIds.push(thing['@iot.id']);
+              thingNames.push(thing.name || '');
+              thingDescriptions.push(thing.description || '');
+              locationNames.push(location.name || '');
+              locationTypes.push(location.location.type);
+              timeValues.push(new Date(histLoc.time).getTime());
+            }
+          });
+        }
+      });
+    }
+  });
 
   return createDataFrame({
     refId: target.refId,
     name: target.alias || 'Things Historical Locations',
     fields: [
       {
+        name: 'geojson',
+        type: FieldType.string,
+        values: geojsonValues,
+        config: {
+          displayName: 'Geometry',
+        },
+      },
+      {
         name: 'thing_id',
         type: FieldType.number,
         values: thingIds,
+        config: {
+          displayName: 'Thing ID',
+        },
       },
       {
         name: 'thing_name',
         type: FieldType.string,
         values: thingNames,
+        config: {
+          displayName: 'Thing Name',
+        },
       },
       {
         name: 'thing_description',
         type: FieldType.string,
         values: thingDescriptions,
-      },
-      {
-        name: 'time',
-        type: FieldType.time,
-        values: timeValues,
-      },
-      {
-        name: 'latitude',
-        type: FieldType.number,
-        values: latValues,
         config: {
-          displayName: 'Latitude',
-          unit: 'degree',
-        },
-      },
-      {
-        name: 'longitude',
-        type: FieldType.number,
-        values: lonValues,
-        config: {
-          displayName: 'Longitude',
-          unit: 'degree',
+          displayName: 'Description',
         },
       },
       {
         name: 'historical_location_name',
         type: FieldType.string,
         values: locationNames,
+        config: {
+          displayName: 'Historical Location Name',
+        },
       },
       {
-        name: 'historical_location_description',
+        name: 'location_type',
         type: FieldType.string,
-        values: locationDescriptions,
+        values: locationTypes,
+        config: {
+          displayName: 'Geometry Type',
+        },
       },
+      {
+        name: 'time',
+        type: FieldType.time,
+        values: timeValues,
+        config: {
+          displayName: 'Time',
+        },
+      },
+    
     ],
-    meta: {
-      custom: {
-        isGeospatialData: true,
-      },
-    },
   });
 }
 
