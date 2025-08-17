@@ -16,7 +16,7 @@ export function transformHistoricalLocations(data: SensorThingsResponse | any, t
   historicalLocations.forEach((histLoc: any) => {
     if (histLoc.Locations && histLoc.Locations.length > 0) {
       histLoc.Locations.forEach((location: any) => {
-        const transformedGeometry = getTransformedGeometry(location);
+        const transformedGeometry = getTransformedGeometry(location.location);
         if (transformedGeometry) {
           geojsonValues.push(JSON.stringify(transformedGeometry));
           locationIds.push(histLoc['@iot.id']);

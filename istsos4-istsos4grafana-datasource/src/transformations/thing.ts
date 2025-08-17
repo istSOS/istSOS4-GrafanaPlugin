@@ -13,7 +13,7 @@ function transformThingsWithLocations(things: any[], target: IstSOS4Query) {
   things.forEach((thing: any, index: number) => {
     if (thing.Locations && thing.Locations.length > 0) {
       thing.Locations.forEach((location: any) => {
-        let transformedGeometry: any = getTransformedGeometry(location);
+        let transformedGeometry: any = getTransformedGeometry(location.location);
         if (transformedGeometry) {
           geojsonValues.push(JSON.stringify(transformedGeometry));
           thingIds.push(thing['@iot.id']);
@@ -95,7 +95,7 @@ function transformThingsWithHistoricalLocations(things: any[], target: IstSOS4Qu
       thing.HistoricalLocations.forEach((histLoc: any) => {
         if (histLoc.Locations && histLoc.Locations.length > 0) {
           histLoc.Locations.forEach((location: any) => {
-            let transformedGeometry: any = getTransformedGeometry(location);
+            let transformedGeometry: any = getTransformedGeometry(location.location);
             if (transformedGeometry) {
               geojsonValues.push(JSON.stringify(transformedGeometry));
               thingIds.push(thing['@iot.id']);

@@ -15,7 +15,7 @@ export function transformLocations(data: SensorThingsResponse | any, target: Ist
   const locations = isSingleLocation ? [data] : data.value;
 
   locations.forEach((location: any) => {
-    let transformedGeometry: any = getTransformedGeometry(location);
+    let transformedGeometry: any = getTransformedGeometry(location.location);
     if (transformedGeometry) {
       geojsonValues.push(JSON.stringify(transformedGeometry));
       locationIds.push(location['@iot.id']);

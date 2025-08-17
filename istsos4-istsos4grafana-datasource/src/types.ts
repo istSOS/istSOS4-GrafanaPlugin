@@ -102,9 +102,11 @@ export type FilterType =
   | 'measurement' 
   | 'spatial' 
   | 'complex'
-  | 'Observation'
+  | 'observation'
   | 'variable'
   | 'entity';
+
+
 
 
 export type FilterField = 
@@ -175,7 +177,7 @@ export interface ComplexFilter extends FilterCondition {
 }
 
 export interface ObservationFilter extends FilterCondition {
-  type: 'Observation';
+  type: 'observation';
   field: 'result' | 'phenomenonTime' | 'resultTime';
   operator: ComparisonOperator;
 }

@@ -20,9 +20,12 @@ import { compareEntityNames } from './utils/utils';
 import { transformDatastreams } from './transformations/datastream';
 import { transformThings } from 'transformations/thing';
 import { transformSensors } from 'transformations/sensor';
-import { transformObservedProperties } from 'transformations/observed_property';
+import { transformObservedProperties } from 'transformations/observedProperty';
 import { transformLocations } from 'transformations/location';
-import { transformHistoricalLocations } from 'transformations/historical_locations';
+import { transformHistoricalLocations } from 'transformations/historicalLocations';
+import { transformFeatureOfInterest } from 'transformations/featureOfInterest';
+import { transformObservations } from 'transformations/observations';
+import { transformBasicEntity } from 'transformations/generic';
 
 export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions> {
   url?: string;
@@ -58,7 +61,6 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
               modifiedQuery.entityId = numericValue;
               console.log(`Applied variable ${variableFilter.variableName} as entityId: ${numericValue}`);
               return null;
-              // Remove Variable filter that has entity equal to the query entity
             }
           }
           console.log(`Updated variable filter ${variableFilter.variableName} with value: ${variableValue}`);
@@ -269,7 +271,7 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
     console.log('SensorThings API Response:', data);
     switch (target.entity) {
       case 'Observations':
-        return this.transformObservations(data, target);
+        return transformObservations(data, target);
       case 'Datastreams':
         return transformDatastreams(data, target);
       case 'Things':
@@ -281,107 +283,11 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
       case 'ObservedProperties':
         return transformObservedProperties(data, target);
       case 'FeaturesOfInterest':
-        return this.transformFeaturesOfInterest(data, target);
+        return transformFeatureOfInterest(data, target);
       case 'HistoricalLocations':
         return transformHistoricalLocations(data, target);
       default:
-        return this.transformGeneric(data, target);
+        return transformBasicEntity(data, target);
     }
-  }
-
-  private transformObservations(data: SensorThingsResponse, target: IstSOS4Query) {
-    if (!data.value || data.value.length === 0) {
-      return createDataFrame({
-        refId: target.refId,
-        name: target.alias || 'Observations',
-        fields: [],
-      });
-    }
-
-    const timeValues: number[] = [];
-    const resultValues: any[] = [];
-
-    data.value.forEach((obs: any) => {
-      if (obs.phenomenonTime) {
-        timeValues.push(new Date(obs.phenomenonTime).getTime());
-        resultValues.push(obs.result);
-      }
-    });
-
-    return createDataFrame({
-      refId: target.refId,
-      name: target.alias || 'Observations',
-      fields: [
-        {
-          name: 'time',
-          type: FieldType.time,
-          values: timeValues,
-        },
-        {
-          name: 'value',
-          type: FieldType.number,
-          values: resultValues,
-        },
-      ],
-    });
-  }
-
-  private transformFeaturesOfInterest(data: SensorThingsResponse, target: IstSOS4Query) {
-    return this.transformGeneric(data, target);
-  }
-
-  private transformGeneric(data: SensorThingsResponse, target: IstSOS4Query) {
-    if (!data.value || data.value.length === 0) {
-      return createDataFrame({
-        refId: target.refId,
-        name: target.alias || target.entity,
-        fields: [],
-      });
-    }
-
-    const firstItem = data.value[0];
-    const fields: any[] = [];
-
-    // Extract common fields
-    if (firstItem['@iot.id'] !== undefined) {
-      fields.push({
-        name: 'id',
-        type: FieldType.number,
-        values: data.value.map((item: any) => item['@iot.id']),
-      });
-    }
-
-    if (firstItem.name !== undefined) {
-      fields.push({
-        name: 'name',
-        type: FieldType.string,
-        values: data.value.map((item: any) => item.name || ''),
-      });
-    }
-    if (firstItem.description !== undefined) {
-      fields.push({
-        name: 'description',
-        type: FieldType.string,
-        values: data.value.map((item: any) => item.description || ''),
-      });
-    }
-    if (fields.length === 0) {
-      fields.push({
-        name: 'data',
-        type: FieldType.string,
-        values: data.value.map((item: any) => JSON.stringify(item)),
-      });
-    }
-    return createDataFrame({
-      refId: target.refId,
-      name: target.alias || target.entity,
-      fields,
-      meta: {
-        custom: {
-          count: data['@iot.count'],
-          nextLink: data['@iot.nextLink'],
-        },
-      },
-    });
   }
 }

@@ -1,6 +1,6 @@
 import { createDataFrame, FieldType } from '@grafana/data';
 import { IstSOS4Query } from 'types';
-import { getSingularEntityName,convertEPSG2056ToWGS84 } from 'utils/utils';
+import { getSingularEntityName, convertEPSG2056ToWGS84 } from 'utils/utils';
 export function transformEntityWithDatastreams(entities: any[], target: IstSOS4Query) {
   const Ids: number[] = [];
   const Names: string[] = [];
@@ -9,7 +9,8 @@ export function transformEntityWithDatastreams(entities: any[], target: IstSOS4Q
   const datastreamNames: string[] = [];
   const datastreamDescriptions: string[] = [];
   const datastreamResultTimes: string[] = [];
-  const type = getSingularEntityName(target.entity).charAt(0).toLowerCase() + getSingularEntityName(target.entity).slice(1);
+  const type =
+    getSingularEntityName(target.entity).charAt(0).toLowerCase() + getSingularEntityName(target.entity).slice(1);
   entities.forEach((entity: any) => {
     if (entity.Datastreams && entity.Datastreams.length > 0) {
       entity.Datastreams.forEach((datastream: any) => {
@@ -67,18 +68,18 @@ export function transformEntityWithDatastreams(entities: any[], target: IstSOS4Q
   });
 }
 
-export function transformBasicEntity(things: any[], target: IstSOS4Query) {
+export function transformBasicEntity(data: any[], target: IstSOS4Query) {
   const Ids: number[] = [];
   const Names: string[] = [];
   const Descriptions: string[] = [];
-  const type = getSingularEntityName(target.entity).charAt(0).toLowerCase() + getSingularEntityName(target.entity).slice(1);
+  const type =
+    getSingularEntityName(target.entity).charAt(0).toLowerCase() + getSingularEntityName(target.entity).slice(1);
 
-  things.forEach((thing: any) => {
+  data.forEach((thing: any) => {
     Ids.push(thing['@iot.id']);
     Names.push(thing.name || '');
     Descriptions.push(thing.description || '');
   });
-
 
   return createDataFrame({
     refId: target.refId,
@@ -105,9 +106,9 @@ export function transformBasicEntity(things: any[], target: IstSOS4Query) {
 
 export function getTransformedGeometry(location: any): any {
   let transformedGeometry;
-  switch (location.location.type) {
+  switch (location.type) {
     case 'Point':
-      const coords = location.location.coordinates;
+      const coords = location.coordinates;
       const [lon, lat] = convertEPSG2056ToWGS84(coords[0], coords[1]);
       transformedGeometry = {
         type: 'Point',
@@ -115,7 +116,7 @@ export function getTransformedGeometry(location: any): any {
       };
       break;
     case 'Polygon':
-      const transformedCoordinates = location.location.coordinates.map((ring: number[][]) =>
+      const transformedCoordinates = location.coordinates.map((ring: number[][]) =>
         ring.map((coord: number[]) => {
           const [lon, lat] = convertEPSG2056ToWGS84(coord[0], coord[1]);
           return [lon, lat];
@@ -128,7 +129,7 @@ export function getTransformedGeometry(location: any): any {
       break;
 
     case 'LineString':
-      const transformedLineCoords = location.location.coordinates.map((coord: number[]) => {
+      const transformedLineCoords = location.coordinates.map((coord: number[]) => {
         const [lon, lat] = convertEPSG2056ToWGS84(coord[0], coord[1]);
         return [lon, lat];
       });
@@ -138,7 +139,7 @@ export function getTransformedGeometry(location: any): any {
       };
       break;
     default:
-      console.warn(`Unsupported geometry type: ${location.location.type}`);
+      console.warn(`Unsupported geometry type: ${location.type}`);
       return;
   }
   return transformedGeometry;

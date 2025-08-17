@@ -3,7 +3,7 @@ import { GrafanaTheme2 } from "@grafana/data";
 import { css } from "@emotion/css";
 import { EntityType } from "types";
 import { SelectableValue } from '@grafana/data';
-import { SENSORS_EXPAND_OPTIONS, THINGS_EXPAND_OPTIONS, DATASTREAMS_EXPAND_OPTIONS, OBSERVED_PROPERTIES_EXPAND_OPTIONS } from "./constants";
+import { SENSORS_EXPAND_OPTIONS, THINGS_EXPAND_OPTIONS, DATASTREAMS_EXPAND_OPTIONS, OBSERVED_PROPERTIES_EXPAND_OPTIONS, FeaturesOfInterest_EXPAND_OPTIONS } from "./constants";
 // EPSG:2056 (CH1903+ / LV95)
 proj4.defs("EPSG:2056", "+proj=somerc +lat_0=46.95240555555556 +lon_0=7.439583333333333 +k=1 +x_0=2600000 +y_0=1200000 +ellps=bessel +units=m +no_defs");
 
@@ -161,6 +161,8 @@ export function getExpandOptions(type: EntityType): SelectableValue<EntityType>[
       return SENSORS_EXPAND_OPTIONS;
     case 'ObservedProperties':
       return OBSERVED_PROPERTIES_EXPAND_OPTIONS;
+      case 'FeaturesOfInterest':
+        return FeaturesOfInterest_EXPAND_OPTIONS;
     default:
       return [];
   }

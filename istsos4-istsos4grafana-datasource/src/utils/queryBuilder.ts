@@ -1,5 +1,16 @@
-import { IstSOS4Query, EntityType, QueryBuilder as MyQueryBuilder, OrderByOption, FilterCondition, TemporalFilter, SpatialFilter, ObservationFilter,VariableFilter, EntityFilter } from '../types';
-import { compareEntityNames,getSingularEntityName } from './utils';
+import {
+  IstSOS4Query,
+  EntityType,
+  QueryBuilder as MyQueryBuilder,
+  OrderByOption,
+  FilterCondition,
+  TemporalFilter,
+  SpatialFilter,
+  ObservationFilter,
+  VariableFilter,
+  EntityFilter,
+} from '../types';
+import { compareEntityNames, getSingularEntityName } from './utils';
 
 /*
 This file contains the Query Builder class.
@@ -91,29 +102,27 @@ export function createQueryBuilder(): QueryBuilder {
 /**
  * Builds the query string from the query object
  */
-export function buildODataQuery(query: IstSOS4Query, encode: boolean=true): string {
+export function buildODataQuery(query: IstSOS4Query, encode: boolean = true): string {
   const params: string[] = [];
-  
+
   let observationFilters: FilterCondition[] = [];
-  let otherFilters: FilterCondition[] = [];
-  
+  let nonObservationFilters: FilterCondition[] = [];
+
   if (query.filters && query.filters.length > 0) {
-    observationFilters = query.filters.filter(f => f.type === 'Observation');
-    otherFilters = query.filters.filter(f => 
-      f.type !== 'Observation' && 
-      !(f.type === 'variable' && compareEntityNames(f.entity, query.entity))
+    nonObservationFilters = query.filters.filter(
+      (f) =>
+        !(f.type === 'observation' && query.entity === 'Datastreams') &&
+        !(f.type === 'variable' && compareEntityNames(f.entity, query.entity))
     );
   }
-  if (query.entity === 'Datastreams') {
+  if (query.entity === 'Datastreams' && query.filters && query.filters.length) {
+    observationFilters = query.filters.filter((f) => f.type === 'observation');
     query.expand = query.expand || [];
-    
-    // Find existing Observations expand option
-    let observationsExpand = query.expand.find(exp => exp.entity === 'Observations');
+    let observationsExpand = query.expand.find((exp) => exp.entity === 'Observations');
     if (!observationsExpand) {
       observationsExpand = { entity: 'Observations' };
       query.expand.push(observationsExpand);
     }
-    
     // If we have Observation filters, add them to the Observations expand
     if (observationFilters.length > 0) {
       const observationFilterExpression = buildFilterExpression(observationFilters);
@@ -133,22 +142,22 @@ export function buildODataQuery(query: IstSOS4Query, encode: boolean=true): stri
     }
   }
 
-  // Process remaining filters (non-Observation filters)
-  if (otherFilters.length > 0) {
-    const filterExpression = buildFilterExpression(otherFilters);
+  if (nonObservationFilters.length > 0) {
+    const filterExpression = buildFilterExpression(nonObservationFilters);
     if (filterExpression) {
       params.push(`$filter=${encode ? encodeURIComponent(filterExpression) : filterExpression}`);
     }
   }
-  
+
   if (query.expand && query.expand.length > 0) {
-    const expandParts = query.expand.map(exp => {
-      let expandStr = exp.entity;      
+    const expandParts = query.expand.map((exp) => {
+      let expandStr = exp.entity;
       if (exp.entity === 'HistoricalLocations') {
         expandStr += '($expand=Locations)';
         // TODO: Add support for other entities that have a subQuery
         // else if may be wrong here, Fix it later
-      } if (exp.subQuery) {
+      }
+      if (exp.subQuery) {
         const subParams: string[] = [];
         if (exp.subQuery.filter) subParams.push(`$filter=${exp.subQuery.filter}`);
         if (exp.subQuery.select) subParams.push(`$select=${exp.subQuery.select.join(',')}`);
@@ -158,7 +167,7 @@ export function buildODataQuery(query: IstSOS4Query, encode: boolean=true): stri
         }
         if (exp.subQuery.top) subParams.push(`$top=${exp.subQuery.top}`);
         if (exp.subQuery.skip) subParams.push(`$skip=${exp.subQuery.skip}`);
-        
+
         if (subParams.length > 0) {
           expandStr += `(${subParams.join(';')})`;
         }
@@ -167,14 +176,14 @@ export function buildODataQuery(query: IstSOS4Query, encode: boolean=true): stri
     });
     params.push(`$expand=${expandParts.join(',')}`);
   }
-  
+
   // Rest of the function remains unchanged
   if (query.select && query.select.length > 0) {
     params.push(`$select=${query.select.join(',')}`);
   }
 
   if (query.orderby && query.orderby.length > 0) {
-    const orderParts = query.orderby.map(o => `${o.property} ${o.direction}`);
+    const orderParts = query.orderby.map((o) => `${o.property} ${o.direction}`);
     params.push(`$orderby=${orderParts.join(',')}`);
   }
 
@@ -210,29 +219,30 @@ export function buildODataQuery(query: IstSOS4Query, encode: boolean=true): stri
  * Builds a filter expression from structured filter conditions
  */
 export function buildFilterExpression(filters: FilterCondition[]): string {
-
-  const expressions = filters.map(filter => {
-    switch (filter.type) {
-      case 'temporal':
-        return buildTemporalFilter(filter as TemporalFilter);
-      case 'basic':
-        return buildBasicFilter(filter);
-      case 'measurement':
-        return buildMeasurementFilter(filter);
-      case 'spatial':
-        return buildSpatialFilter(filter as SpatialFilter);
-      case 'complex':
-        return filter.expression;
-      case 'Observation':
-        return buildObservationFilter(filter as ObservationFilter);
-      case 'variable':
-        return buildVariableFilter(filter as VariableFilter);
-      case 'entity':
-        return buildEntityFilter(filter as EntityFilter);
-      default:
-        return '';
-    }
-  }).filter(expr => expr !== '');
+  const expressions = filters
+    .map((filter) => {
+      switch (filter.type) {
+        case 'temporal':
+          return buildTemporalFilter(filter as TemporalFilter);
+        case 'basic':
+          return buildBasicFilter(filter);
+        case 'measurement':
+          return buildMeasurementFilter(filter);
+        case 'spatial':
+          return buildSpatialFilter(filter as SpatialFilter);
+        case 'complex':
+          return filter.expression;
+        case 'observation':
+          return buildObservationFilter(filter as ObservationFilter);
+        case 'variable':
+          return buildVariableFilter(filter as VariableFilter);
+        case 'entity':
+          return buildEntityFilter(filter as EntityFilter);
+        default:
+          return '';
+      }
+    })
+    .filter((expr) => expr !== '');
 
   return expressions.join(' and ');
 }
@@ -242,7 +252,9 @@ export function buildFilterExpression(filters: FilterCondition[]): string {
  */
 function buildTemporalFilter(filter: TemporalFilter): string {
   if (filter.startDate && filter.endDate) {
-    return `${filter.field} ge ${formatDateTime(filter.startDate)} and ${filter.field} le ${formatDateTime(filter.endDate)}`;
+    return `${filter.field} ge ${formatDateTime(filter.startDate)} and ${filter.field} le ${formatDateTime(
+      filter.endDate
+    )}`;
   } else if (filter.operator && filter.value !== null && filter.value !== undefined) {
     if (['year', 'month', 'day', 'hour', 'minute', 'second'].includes(filter.operator)) {
       return `${filter.operator}(${filter.field}) eq ${filter.value}`;
@@ -293,7 +305,13 @@ function buildVariableFilter(filter: VariableFilter): string {
  * Builds an entity filter expression
  */
 function buildEntityFilter(filter: EntityFilter): string {
-  if (!filter.operator || !filter.entity || filter.value === null || filter.value === undefined || filter.value === '') {
+  if (
+    !filter.operator ||
+    !filter.entity ||
+    filter.value === null ||
+    filter.value === undefined ||
+    filter.value === ''
+  ) {
     return '';
   }
   let entityPath: string = getSingularEntityName(filter.entity);
@@ -321,31 +339,33 @@ function buildSpatialFilter(filter: SpatialFilter): string {
     if (!filter.rings || filter.rings.length === 0) {
       console.warn('Invalid Polygon rings for spatial filter, no rings provided');
       return '';
-    }    
-    const ringsString = filter.rings.map((ring) => {
-      if (!ring.coordinates || ring.coordinates.length < 4) {
-        return ''; 
-      }
-      const coords = [...ring.coordinates];
-      const firstPoint = coords[0];
-      const lastPoint = coords[coords.length - 1];
-      if (firstPoint[0] !== lastPoint[0] || firstPoint[1] !== lastPoint[1]) {
-        coords.push([firstPoint[0], firstPoint[1]]);
-      }
-      return coords.map((point) => `${point[0]} ${point[1]}`).join(', ');
-    }).join('), (');
-    
+    }
+    const ringsString = filter.rings
+      .map((ring) => {
+        if (!ring.coordinates || ring.coordinates.length < 4) {
+          return '';
+        }
+        const coords = [...ring.coordinates];
+        const firstPoint = coords[0];
+        const lastPoint = coords[coords.length - 1];
+        if (firstPoint[0] !== lastPoint[0] || firstPoint[1] !== lastPoint[1]) {
+          coords.push([firstPoint[0], firstPoint[1]]);
+        }
+        return coords.map((point) => `${point[0]} ${point[1]}`).join(', ');
+      })
+      .join('), (');
+
     if (ringsString.length === 0) {
       return '';
     }
-    
+
     geometryString = `geography'POLYGON ((${ringsString}))'`;
   } else if (filter.geometryType === 'LineString') {
     if (!filter.coordinates || filter.coordinates.length < 2) {
       return '';
     }
     const coordsString = filter.coordinates.map((point: number[]) => `${point[0]} ${point[1]}`).join(', ');
-    geometryString = `geography'LINESTRING (${coordsString})'`; 
+    geometryString = `geography'LINESTRING (${coordsString})'`;
   }
 
   if (filter.operator === 'st_distance' && typeof filter.value === 'number') {
@@ -363,11 +383,11 @@ function buildObservationFilter(filter: ObservationFilter): string {
     if (filter.field === 'phenomenonTime' || filter.field === 'resultTime') {
       return `${filter.field} ${filter.operator} ${formatDateTime(filter.value as string)}`;
     } else {
-      return `${filter.field} ${filter.operator} ${(filter.value)}`;
+      return `${filter.field} ${filter.operator} ${formatValue(filter.value)}`;
     }
   }
   return '';
-} 
+}
 
 /**
  * Formats a value for use in a filter expression
@@ -394,13 +414,13 @@ function formatDateTime(dateTime: string): string {
  */
 export function buildApiUrl(baseUrl: string, query: IstSOS4Query): string {
   let url = `${baseUrl}/${query.entity}`;
-  
+
   if (query.entityId !== undefined) {
     url += `(${query.entityId})`;
   }
-  
+
   url += buildODataQuery(query);
-  
+
   return url;
 }
 
@@ -409,18 +429,24 @@ export function buildApiUrl(baseUrl: string, query: IstSOS4Query): string {
  */
 export const FilterExpressions = {
   // Comparison operators
-  equals: (property: string, value: string | number) => `${property} eq ${typeof value === 'string' ? `'${value}'` : value}`,
-  notEquals: (property: string, value: string | number) => `${property} ne ${typeof value === 'string' ? `'${value}'` : value}`,
-  greaterThan: (property: string, value: string | number) => `${property} gt ${typeof value === 'string' ? `'${value}'` : value}`,
-  greaterThanOrEqual: (property: string, value: string | number) => `${property} ge ${typeof value === 'string' ? `'${value}'` : value}`,
-  lessThan: (property: string, value: string | number) => `${property} lt ${typeof value === 'string' ? `'${value}'` : value}`,
-  lessThanOrEqual: (property: string, value: string | number) => `${property} le ${typeof value === 'string' ? `'${value}'` : value}`,
-  
+  equals: (property: string, value: string | number) =>
+    `${property} eq ${typeof value === 'string' ? `'${value}'` : value}`,
+  notEquals: (property: string, value: string | number) =>
+    `${property} ne ${typeof value === 'string' ? `'${value}'` : value}`,
+  greaterThan: (property: string, value: string | number) =>
+    `${property} gt ${typeof value === 'string' ? `'${value}'` : value}`,
+  greaterThanOrEqual: (property: string, value: string | number) =>
+    `${property} ge ${typeof value === 'string' ? `'${value}'` : value}`,
+  lessThan: (property: string, value: string | number) =>
+    `${property} lt ${typeof value === 'string' ? `'${value}'` : value}`,
+  lessThanOrEqual: (property: string, value: string | number) =>
+    `${property} le ${typeof value === 'string' ? `'${value}'` : value}`,
+
   // String functions
   startsWith: (property: string, value: string) => `startswith(${property},'${value}')`,
   endsWith: (property: string, value: string) => `endswith(${property},'${value}')`,
   substringof: (property: string, value: string) => `substringof('${value}',${property})`,
-  
+
   // Date/time functions
   year: (property: string, value: number) => `year(${property}) eq ${value}`,
   month: (property: string, value: number) => `month(${property}) eq ${value}`,
@@ -428,18 +454,18 @@ export const FilterExpressions = {
   hour: (property: string, value: number) => `hour(${property}) eq ${value}`,
   minute: (property: string, value: number) => `minute(${property}) eq ${value}`,
   second: (property: string, value: number) => `second(${property}) eq ${value}`,
-  
+
   // Time range
-  timeRange: (property: string, from: string, to: string) => 
-    `${property} ge ${from} and ${property} le ${to}`,
-  
+  timeRange: (property: string, from: string, to: string) => `${property} ge ${from} and ${property} le ${to}`,
+
   // Logical operators
   and: (...expressions: string[]) => expressions.join(' and '),
   or: (...expressions: string[]) => expressions.join(' or '),
   not: (expression: string) => `not (${expression})`,
-  
+
   // Spatial functions (for Location entities)
   within: (property: string, geometry: string) => `st_within(${property}, ${geometry})`,
   intersects: (property: string, geometry: string) => `st_intersects(${property}, ${geometry})`,
-  distance: (property: string, geometry: string, distance: number) => `st_distance(${property}, ${geometry}) le ${distance}`,
-}; 
+  distance: (property: string, geometry: string, distance: number) =>
+    `st_distance(${property}, ${geometry}) le ${distance}`,
+};
