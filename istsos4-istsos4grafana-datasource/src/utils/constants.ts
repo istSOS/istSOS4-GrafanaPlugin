@@ -34,9 +34,6 @@ export const OBSERVED_PROPERTIES_EXPAND_OPTIONS: Array<SelectableValue<EntityTyp
 
   export const DATASTREAMS_EXPAND_OPTIONS: Array<SelectableValue<EntityType>> = [
     { label: 'Observations', value: 'Observations', description: 'Include related observations' },
-    { label: 'Thing', value: 'Things', description: 'Include the related Thing' },
-    { label: 'Sensor', value: 'Sensors', description: 'Include the related Sensor' },
-    { label: 'ObservedProperty', value: 'ObservedProperties', description: 'Include the related ObservedProperty' },
   ];
 
 export const COMMON_FIELDS: Array<SelectableValue<FilterField>> = [
@@ -71,7 +68,6 @@ export const FILTER_TYPES: Array<SelectableValue<FilterType>> = [
   { label: 'Temporal', value: 'temporal', description: 'Filter by time-related properties' },
   { label: 'Measurement', value: 'measurement', description: 'Filter by measurement values or units' },
   { label: 'Spatial', value: 'spatial', description: 'Filter by geographic location' },
-  { label: 'Complex', value: 'complex', description: 'Custom OData filter expression' },
   { label:'Observation', value: 'observation', description: 'Filter by observation properties' },
   { label: 'Entity', value: 'entity', description: 'Filter by related entity properties (e.g., Sensor/id, Thing/name)' },
 ];

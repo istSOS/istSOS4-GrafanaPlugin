@@ -105,6 +105,16 @@ export function createQueryBuilder(): QueryBuilder {
 export function buildODataQuery(query: IstSOS4Query, encode: boolean = true): string {
   const params: string[] = [];
 
+  // Check if custom query expression exists
+  if (query.expression && query.expression.trim()) {
+    const expression = query.expression.trim();
+    if (!expression.startsWith('?')) {
+      return `?${expression}`;
+    }
+    return expression;
+  }
+
+  // Fall back to existing filter logic only if no custom expression
   let observationFilters: FilterCondition[] = [];
   let nonObservationFilters: FilterCondition[] = [];
 
@@ -226,8 +236,6 @@ export function buildFilterExpression(filters: FilterCondition[]): string {
           return buildMeasurementFilter(filter);
         case 'spatial':
           return buildSpatialFilter(filter as SpatialFilter);
-        case 'complex':
-          return filter.expression;
         case 'observation':
           return buildObservationFilter(filter as ObservationFilter);
         case 'variable':

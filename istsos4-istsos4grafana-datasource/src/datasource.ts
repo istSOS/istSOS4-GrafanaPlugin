@@ -37,46 +37,60 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
   getDefaultQuery(_: CoreApp): Partial<IstSOS4Query> {
     return DEFAULT_QUERY;
   }
+  private applyCustomVariableSubstitution(expression: string, scopedVars: ScopedVars): string {
+    if (!expression) {
+      return expression;
+    }
+
+    // Regular expression to find content within single quotes that contains $
+    const quotedVariablePattern = /'([^']*\$[^']*)'/g;
+
+    return expression.replace(quotedVariablePattern, (match, quotedContent) => {
+      // Apply template variable substitution only to content inside quotes
+      const substituted = getTemplateSrv().replace(quotedContent, scopedVars);
+      return `'${substituted}'`;
+    });
+  }
 
   applyTemplateVariables(query: IstSOS4Query, scopedVars: ScopedVars) {
     let modifiedQuery = {
       ...query,
       alias: query.alias ? getTemplateSrv().replace(query.alias, scopedVars) : query.alias,
     };
+
+    // Handle custom query expression with special variable substitution
+    if (modifiedQuery.expression) {
+      modifiedQuery.expression = this.applyCustomVariableSubstitution(modifiedQuery.expression, scopedVars);
+    }
+
     if (modifiedQuery.filters) {
       modifiedQuery.filters = modifiedQuery.filters
         .map((filter) => {
-          if (!(filter.type === 'variable' || filter.type === 'complex')) {
+          if (filter.type !== 'variable') {
             return filter;
           }
-          if (filter.type === 'complex') {
-            const complexFilter = filter as any;
-            const processedExpression = getTemplateSrv().replace(complexFilter.expression.trim(), scopedVars);
-            console.log(`Processing complex filter: ${complexFilter.expression} -> ${processedExpression}`);
-            return { ...complexFilter, expression: processedExpression };
-          } else {
-            const variableFilter = filter as any;
-            const variableValue = getTemplateSrv().replace(variableFilter.variableName, scopedVars);
-            console.log(
-              `Processing variable filter: ${variableFilter.variableName}, entity: ${variableFilter.entity}, value: ${variableValue}`
-            );
+          
+          const variableFilter = filter as any;
+          const variableValue = getTemplateSrv().replace(variableFilter.variableName, scopedVars);
+          console.log(
+            `Processing variable filter: ${variableFilter.variableName}, entity: ${variableFilter.entity}, value: ${variableValue}`
+          );
 
-            if (!variableValue || variableValue === variableFilter.variableName) {
-              return { ...variableFilter, value: null };
-            }
-
-            if (compareEntityNames(variableFilter.entity, query.entity)) {
-              const numericValue = parseInt(variableValue, 10);
-              if (!isNaN(numericValue)) {
-                modifiedQuery.entityId = numericValue;
-                console.log(`Applied variable ${variableFilter.variableName} as entityId: ${numericValue}`);
-                return null;
-                // Remove Variable filter that has entity equal to the query entity
-              }
-            }
-            console.log(`Updated variable filter ${variableFilter.variableName} with value: ${variableValue}`);
-            return { ...variableFilter, value: variableValue };
+          if (!variableValue || variableValue === variableFilter.variableName) {
+            return { ...variableFilter, value: null };
           }
+
+          if (compareEntityNames(variableFilter.entity, query.entity)) {
+            const numericValue = parseInt(variableValue, 10);
+            if (!isNaN(numericValue)) {
+              modifiedQuery.entityId = numericValue;
+              console.log(`Applied variable ${variableFilter.variableName} as entityId: ${numericValue}`);
+              return null;
+              // Remove Variable filter that has entity equal to the query entity
+            }
+          }
+          console.log(`Updated variable filter ${variableFilter.variableName} with value: ${variableValue}`);
+          return { ...variableFilter, value: variableValue };
         })
 
         .filter(Boolean);
@@ -265,11 +279,6 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
       const result = entities.map((entity: any) => {
         let text = entity.name || entity['@iot.id']?.toString() || '';
         let value = entity['@iot.id']?.toString() || '';
-
-        if (modifiedQuery.entity === 'Observations') {
-          text = entity.resultTime || entity.phenomenonTime || entity['@iot.id']?.toString() || '';
-        }
-
         return { text, value };
       });
       return result;

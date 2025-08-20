@@ -1,6 +1,7 @@
 import { createDataFrame, FieldType } from '@grafana/data';
 import { getTransformedGeometry } from './generic';
 import { SensorThingsResponse, IstSOS4Query } from 'types';
+import { searchExpandEntity } from 'utils/utils';
 
 function transformFeatureOfInterestWithObservations(feature: any, target: IstSOS4Query) {
   if (!feature || (Array.isArray(feature.Observations) && feature.Observations.length === 0)) {
@@ -120,8 +121,9 @@ export function transformFeatureOfInterest(data: SensorThingsResponse | any, tar
   const isSingleFeatureOfInterest = target.entityId !== undefined;
   const FeaturesOfInterest = isSingleFeatureOfInterest ? [data] : data.value;
 
-  const hasExpandedObservations = target.expand?.some((exp) => exp.entity === 'Observations');
-
+  const hasExpandedObservations =
+    target.expand?.some((exp) => exp.entity === 'Observations') ||
+    (target.expression && searchExpandEntity(target.expression, 'Observations'));
   if (isSingleFeatureOfInterest && hasExpandedObservations) {
     return transformFeatureOfInterestWithObservations(FeaturesOfInterest[0], target);
   }

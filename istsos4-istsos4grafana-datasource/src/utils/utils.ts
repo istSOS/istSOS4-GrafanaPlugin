@@ -74,6 +74,16 @@ export const ensureClosedRing = (coords: [number, number][]): [number, number][]
       return coords;
     };
 
+export const searchExpandEntity = (expression: string, entityType: string): boolean => {
+  if (!expression || !entityType) {return false;}
+  const expandMatch = expression.match(/\$expand=([^&]*)/);
+  if (!expandMatch) {return false;}
+  const expandPart = expandMatch[1];
+  const expandedEntities = expandPart.split(",").map(e => e.trim());
+  return expandedEntities.includes(entityType);
+};
+
+
 export const getSingularEntityName = (entity: string): string => {
   if (entity==='ObservedProperties') {
     return 'ObservedProperty';
