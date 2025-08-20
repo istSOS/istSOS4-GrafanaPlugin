@@ -46,27 +46,39 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
     if (modifiedQuery.filters) {
       modifiedQuery.filters = modifiedQuery.filters
         .map((filter) => {
-          if (filter.type !== 'variable') {return filter;}
-          const variableFilter = filter as any;
-          const variableValue = getTemplateSrv().replace(`$${variableFilter.variableName}`, scopedVars);
-          console.log(
-            `Processing variable filter: ${variableFilter.variableName}, entity: ${variableFilter.entity}, value: ${variableValue}`
-          );
-          if (!variableValue || variableValue === `$${variableFilter.variableName}`) {
-            return { ...variableFilter, value: null };
+          if (!(filter.type === 'variable' || filter.type === 'complex')) {
+            return filter;
           }
-          if (compareEntityNames(variableFilter.entity, query.entity)) {
-            const numericValue = parseInt(variableValue, 10);
-            if (!isNaN(numericValue)) {
-              modifiedQuery.entityId = numericValue;
-              console.log(`Applied variable ${variableFilter.variableName} as entityId: ${numericValue}`);
-              return null;
-              // Remove Variable filter that has entity equal to the query entity
+          if (filter.type === 'complex') {
+            const complexFilter = filter as any;
+            const processedExpression = getTemplateSrv().replace(complexFilter.expression.trim(), scopedVars);
+            console.log(`Processing complex filter: ${complexFilter.expression} -> ${processedExpression}`);
+            return { ...complexFilter, expression: processedExpression };
+          } else {
+            const variableFilter = filter as any;
+            const variableValue = getTemplateSrv().replace(variableFilter.variableName, scopedVars);
+            console.log(
+              `Processing variable filter: ${variableFilter.variableName}, entity: ${variableFilter.entity}, value: ${variableValue}`
+            );
+
+            if (!variableValue || variableValue === variableFilter.variableName) {
+              return { ...variableFilter, value: null };
             }
+
+            if (compareEntityNames(variableFilter.entity, query.entity)) {
+              const numericValue = parseInt(variableValue, 10);
+              if (!isNaN(numericValue)) {
+                modifiedQuery.entityId = numericValue;
+                console.log(`Applied variable ${variableFilter.variableName} as entityId: ${numericValue}`);
+                return null;
+                // Remove Variable filter that has entity equal to the query entity
+              }
+            }
+            console.log(`Updated variable filter ${variableFilter.variableName} with value: ${variableValue}`);
+            return { ...variableFilter, value: variableValue };
           }
-          console.log(`Updated variable filter ${variableFilter.variableName} with value: ${variableValue}`);
-          return { ...variableFilter, value: variableValue };
         })
+
         .filter(Boolean);
     }
 

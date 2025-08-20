@@ -292,7 +292,7 @@ function buildVariableFilter(filter: VariableFilter): string {
     return `${filter.entity}/${filter.field} ${filter.operator} ${formatValue(filter.value)}`;
   }
   if (filter.variableName) {
-    return `${filter.entity}/${filter.field} ${filter.operator} $${filter.variableName}`;
+    return `${filter.entity}/${filter.field} ${filter.operator} ${filter.variableName}`;
   }
   return '';
 }

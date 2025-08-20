@@ -134,7 +134,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     const variableFilters = (currentQuery.filters || []).filter((f) => f.type === 'variable');
     const matchingVariable = variableFilters.find((vf) => compareEntityNames(vf.entity, currentQuery.entity));
     if (matchingVariable) {
-      fullUrl += `(\$${(matchingVariable as any).variableName})`;
+      fullUrl += `(${(matchingVariable as any).variableName})`;
     } else if (currentQuery.entityId !== undefined) {
       fullUrl += `(${currentQuery.entityId})`;
     }

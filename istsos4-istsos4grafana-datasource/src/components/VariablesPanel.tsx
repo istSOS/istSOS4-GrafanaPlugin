@@ -29,6 +29,9 @@ export function VariablesPanel({ filters, onFiltersChange }: VariablesPanelProps
       return; 
     }
 
+    // Automatically prepend $ to the variable name if not already present
+    const variableName = newVariable.name.startsWith('$') ? newVariable.name : `$${newVariable.name}`;
+
     const variableFilter: VariableFilter = {
       id: uuidv4(),
       type: 'variable',
@@ -36,7 +39,7 @@ export function VariablesPanel({ filters, onFiltersChange }: VariablesPanelProps
       operator: 'eq',
       value: null,
       entity: getSingularEntityName(newVariable.entity) as any,
-      variableName: newVariable.name,
+      variableName: variableName,
     };
 
     const updatedFilters = [...filters, variableFilter];
@@ -131,12 +134,13 @@ export function VariablesPanel({ filters, onFiltersChange }: VariablesPanelProps
       }}>
         <InlineField label="Name" labelWidth={8}>
           <Input
+            prefix="$"
             value={newVariable.name || ''}
             onChange={(e: ChangeEvent<HTMLInputElement>) => 
               setNewVariable({ ...newVariable, name: e.target.value })
             }
             width={15}
-            placeholder="Enter variable name"
+            placeholder="Things"
           />
         </InlineField>
         
