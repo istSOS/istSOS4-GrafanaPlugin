@@ -25,7 +25,6 @@ import { transformLocations } from 'transformations/location';
 import { transformHistoricalLocations } from 'transformations/historicalLocations';
 import { transformFeatureOfInterest } from 'transformations/featureOfInterest';
 import { transformObservations } from 'transformations/observations';
-import { transformBasicEntity } from 'transformations/generic';
 
 export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions> {
   url?: string;
@@ -47,20 +46,22 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
     if (modifiedQuery.filters) {
       modifiedQuery.filters = modifiedQuery.filters
         .map((filter) => {
-          if (filter.type !== 'variable') return filter;
+          if (filter.type !== 'variable') {return filter;}
           const variableFilter = filter as any;
           const variableValue = getTemplateSrv().replace(`$${variableFilter.variableName}`, scopedVars);
           console.log(
             `Processing variable filter: ${variableFilter.variableName}, entity: ${variableFilter.entity}, value: ${variableValue}`
           );
-          if (!variableValue || variableValue === `$${variableFilter.variableName}`)
+          if (!variableValue || variableValue === `$${variableFilter.variableName}`) {
             return { ...variableFilter, value: null };
+          }
           if (compareEntityNames(variableFilter.entity, query.entity)) {
             const numericValue = parseInt(variableValue, 10);
             if (!isNaN(numericValue)) {
               modifiedQuery.entityId = numericValue;
               console.log(`Applied variable ${variableFilter.variableName} as entityId: ${numericValue}`);
               return null;
+              // Remove Variable filter that has entity equal to the query entity
             }
           }
           console.log(`Updated variable filter ${variableFilter.variableName} with value: ${variableValue}`);
@@ -248,8 +249,8 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
       }
 
       const entities = responseData.value as any[];
-
-      return entities.map((entity: any) => {
+      console.log('Entities are:', entities);
+      const result = entities.map((entity: any) => {
         let text = entity.name || entity['@iot.id']?.toString() || '';
         let value = entity['@iot.id']?.toString() || '';
 
@@ -259,6 +260,7 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
 
         return { text, value };
       });
+      return result;
     } catch (error) {
       console.error('Error in metricFindQuery:', error);
       return [];
@@ -287,7 +289,62 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
       case 'HistoricalLocations':
         return transformHistoricalLocations(data, target);
       default:
-        return transformBasicEntity(data, target);
+        return this.transformGeneric(data, target);
     }
+  }
+
+  private transformGeneric(data: SensorThingsResponse, target: IstSOS4Query) {
+    if (!data.value || data.value.length === 0) {
+      return createDataFrame({
+        refId: target.refId,
+        name: target.alias || target.entity,
+        fields: [],
+      });
+    }
+
+    const firstItem = data.value[0];
+    const fields: any[] = [];
+
+    // Extract common fields
+    if (firstItem['@iot.id'] !== undefined) {
+      fields.push({
+        name: 'id',
+        type: FieldType.number,
+        values: data.value.map((item: any) => item['@iot.id']),
+      });
+    }
+
+    if (firstItem.name !== undefined) {
+      fields.push({
+        name: 'name',
+        type: FieldType.string,
+        values: data.value.map((item: any) => item.name || ''),
+      });
+    }
+    if (firstItem.description !== undefined) {
+      fields.push({
+        name: 'description',
+        type: FieldType.string,
+        values: data.value.map((item: any) => item.description || ''),
+      });
+    }
+    if (fields.length === 0) {
+      fields.push({
+        name: 'data',
+        type: FieldType.string,
+        values: data.value.map((item: any) => JSON.stringify(item)),
+      });
+    }
+    return createDataFrame({
+      refId: target.refId,
+      name: target.alias || target.entity,
+      fields,
+      meta: {
+        custom: {
+          count: data['@iot.count'],
+          nextLink: data['@iot.nextLink'],
+        },
+      },
+    });
   }
 }

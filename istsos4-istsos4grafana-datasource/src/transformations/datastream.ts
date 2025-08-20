@@ -2,17 +2,6 @@ import { SensorThingsResponse, IstSOS4Query } from '../types';
 import { createDataFrame, DataFrame, FieldType } from '@grafana/data';
 import { formatPhenomenonTime } from '../utils/utils';
 
-/*
-Datastreams Transformation
-- Single Datastream
-- Multiple Datastreams
-- Observations Expansion (default for now)
-To be added:
--Sensor Expansion
--Thing Expansion
--ObservedProperty Expansion
-*/
-
 export function transformDatastreams(data: SensorThingsResponse | any, target: IstSOS4Query): DataFrame | DataFrame[] {
     console.log('Transforming datastreams - entityId:', target.entityId);    
     if (!data || (Array.isArray(data.value) && data.value.length === 0)) {
@@ -22,10 +11,8 @@ export function transformDatastreams(data: SensorThingsResponse | any, target: I
         fields: [],
       });
     }    
-    const isSingleDatastream = target.entityId !== undefined;
-    
-    // Force Observations expansion for Datastreams (may be changed later)
-    const hasExpandedObservations = true;    
+    const isSingleDatastream = target.entityId !== undefined;    
+    const hasExpandedObservations = target.expand?.some((exp)=>exp.entity === 'Observations') ?? false;  
     if (isSingleDatastream) {
       const datastream = data;
       console.log('Processing single datastream:', datastream);
@@ -34,8 +21,7 @@ export function transformDatastreams(data: SensorThingsResponse | any, target: I
       const unitName = unitOfMeasurement.name || 'Unknown';
       const unitSymbol = unitOfMeasurement.symbol || '';
       const unitDefinition = unitOfMeasurement.definition || '';
-      
-      if (hasExpandedObservations && datastream.Observations && datastream.Observations.length > 0) {
+      if (hasExpandedObservations) {
         console.log('Creating time series with observations count:', datastream.Observations.length);
         
         const timeValues: number[] = [];
@@ -140,7 +126,6 @@ export function transformDatastreams(data: SensorThingsResponse | any, target: I
     else {
       console.log('Processing multiple datastreams');
       const datastreams = data.value;
-      
       if (hasExpandedObservations) {
         console.log('Creating separate DataFrames for each datastream with observations');
         

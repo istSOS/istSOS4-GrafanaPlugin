@@ -50,13 +50,6 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
   const onEntityChange = (value: SelectableValue<EntityType>) => {
     const newQuery = { ...currentQuery, entity: value.value!, entityId: undefined };
 
-    // Auto Expanstions when the Entity is changed
-    if (value.value === 'Datastreams') {
-      newQuery.expand = newQuery.expand || [];
-      if (!newQuery.expand.some((exp) => exp.entity === 'Observations')) {
-        newQuery.expand.push({ entity: 'Observations' });
-      }
-    }
     if (value.value === 'HistoricalLocations') {
       newQuery.expand = newQuery.expand || [];
       if (!newQuery.expand.some((exp) => exp.entity === 'Locations')) {
@@ -136,7 +129,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
   };
 
   const previewQuery = () => {
-    const queryString = buildODataQuery(currentQuery,false);
+    const queryString = buildODataQuery(currentQuery, false);
     let fullUrl = `/${currentQuery.entity}`;
     const variableFilters = (currentQuery.filters || []).filter((f) => f.type === 'variable');
     const matchingVariable = variableFilters.find((vf) => compareEntityNames(vf.entity, currentQuery.entity));

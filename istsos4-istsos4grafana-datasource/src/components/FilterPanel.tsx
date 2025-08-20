@@ -48,19 +48,20 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
     let available: Array<string> = [];
     switch (entityType) {
       case 'Things':
-        available = ['basic'];
+        available = ['basic','complex'];
         return FILTER_TYPES.filter((filterType) => filterType.value && available.includes(filterType.value));
       case 'Datastreams':
         return FILTER_TYPES;
       case 'Locations':
       case 'HistoricalLocations':
-        available = ['basic', 'spatial', 'entity'];
+        available = ['basic', 'spatial', 'entity','complex'];
         return FILTER_TYPES.filter((filterType) => filterType.value && available.includes(filterType.value));
       case 'Observations':
-        available = ['observation', 'entity'];
+        available = ['observation', 'entity','complex'];
         return FILTER_TYPES.filter((filterType) => filterType.value && available.includes(filterType.value));
       default:
-        return [];
+        available=['complex'];
+        return FILTER_TYPES.filter((filterType) => filterType.value && available.includes(filterType.value));
     }
   };
 
