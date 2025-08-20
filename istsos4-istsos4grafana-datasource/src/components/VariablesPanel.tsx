@@ -140,7 +140,7 @@ export function VariablesPanel({ filters, onFiltersChange }: VariablesPanelProps
               setNewVariable({ ...newVariable, name: e.target.value })
             }
             width={15}
-            placeholder="Things"
+            placeholder="Enter variable name"
           />
         </InlineField>
         
