@@ -75,12 +75,19 @@ export const ensureClosedRing = (coords: [number, number][]): [number, number][]
     };
 
 export const searchExpandEntity = (expression: string, entityType: string): boolean => {
+  console.log("expression:", expression);
   if (!expression || !entityType) {return false;}
   const expandMatch = expression.match(/\$expand=([^&]*)/);
   if (!expandMatch) {return false;}
   const expandPart = expandMatch[1];
-  const expandedEntities = expandPart.split(",").map(e => e.trim());
-  return expandedEntities.includes(entityType);
+
+  const expandedEntities = expandPart.split(",").map(e => {
+    const trimmed = e.trim();
+    const bracketIndex = trimmed.indexOf('(');
+    return bracketIndex !== -1 ? trimmed.substring(0, bracketIndex) : trimmed;
+  });
+  console.log("expanded entities:", expandedEntities);
+    return expandedEntities.includes(entityType);
 };
 
 

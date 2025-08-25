@@ -8,8 +8,7 @@ export function transformObservations(data: SensorThingsResponse, target: IstSOS
       fields: [],
     });
   }
-  const isSingleObservation = target.entityId !== undefined;
-  const observations = isSingleObservation ? [data] : data.value;
+  const observations = data.value;
 
   const timeValues: number[] = [];
   const resultValues: any[] = [];

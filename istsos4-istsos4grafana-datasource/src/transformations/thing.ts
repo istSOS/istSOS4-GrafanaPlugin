@@ -185,8 +185,7 @@ export function transformThings(data: SensorThingsResponse | any, target: IstSOS
       fields: [],
     });
   }
-  const isSingleThing = target.entityId !== undefined;
-  const things = isSingleThing ? [data] : data.value;
+  const things=data.value;
 
 const hasExpandedDatastreams =
   target.expand?.some(exp => exp.entity === 'Datastreams') ||

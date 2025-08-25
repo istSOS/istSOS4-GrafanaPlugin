@@ -327,6 +327,10 @@ export interface MyDataSourceOptions extends DataSourceJsonData {
   oauth2TokenUrl?: string;
   oauth2Username?: string;
   oauth2ClientId?: string;
+  // Default pagination size
+  defaultTop?: number;
+  // Default pagination size for expanded Observations
+  defaultExpandedObservationsTop?: number;
 }
 
 /**

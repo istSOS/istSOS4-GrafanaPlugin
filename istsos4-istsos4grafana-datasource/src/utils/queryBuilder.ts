@@ -160,8 +160,6 @@ export function buildODataQuery(query: IstSOS4Query, encode: boolean = true): st
       let expandStr = exp.entity;
       if (exp.entity === 'HistoricalLocations') {
         expandStr += '($expand=Locations)';
-        // TODO: Add support for other entities that have a subQuery
-        // else if may be wrong here, Fix it later
       }
       if (exp.subQuery) {
         const subParams: string[] = [];

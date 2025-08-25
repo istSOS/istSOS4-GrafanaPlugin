@@ -119,7 +119,7 @@ export function transformFeatureOfInterest(data: SensorThingsResponse | any, tar
   }
 
   const isSingleFeatureOfInterest = target.entityId !== undefined;
-  const FeaturesOfInterest = isSingleFeatureOfInterest ? [data] : data.value;
+  const FeaturesOfInterest = data.value;
 
   const hasExpandedObservations =
     target.expand?.some((exp) => exp.entity === 'Observations') ||

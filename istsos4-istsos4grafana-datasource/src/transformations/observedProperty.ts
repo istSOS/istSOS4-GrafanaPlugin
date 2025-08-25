@@ -11,9 +11,7 @@ export function transformObservedProperties(data: SensorThingsResponse | any, ta
       fields: [],
     });
   }
-  const isSingleObservedProperty = target.entityId !== undefined;
-  const ObservedProperties = isSingleObservedProperty ? [data] : data.value;
-
+  const ObservedProperties =  data.value;
   const hasExpandedDatastreams =
     target.expand?.some((exp) => exp.entity === 'Datastreams') ||
     (target.expression && searchExpandEntity(target.expression, 'Datastreams'));

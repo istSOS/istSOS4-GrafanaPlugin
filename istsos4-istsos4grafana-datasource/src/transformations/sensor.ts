@@ -11,8 +11,7 @@ export function transformSensors(data: SensorThingsResponse | any, target: IstSO
       fields: [],
     });
   }
-  const isSingleSensor = target.entityId !== undefined;
-  const sensors = isSingleSensor ? [data] : data.value;
+  const sensors = data.value;
 
   const hasExpandedDatastreams = target.expand?.some((exp) => exp.entity === 'Datastreams') || (target.expression && searchExpandEntity(target.expression, 'Datastreams'));
   if (hasExpandedDatastreams) return transformEntityWithDatastreams(sensors, target);

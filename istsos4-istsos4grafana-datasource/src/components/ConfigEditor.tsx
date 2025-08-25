@@ -59,6 +59,28 @@ export function ConfigEditor(props: Props) {
     });
   };
 
+  const onDefaultTopChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const value = parseInt(event.target.value, 10);
+    onOptionsChange({
+      ...options,
+      jsonData: {
+        ...jsonData,
+        defaultTop: isNaN(value) ? undefined : value,
+      },
+    });
+  };
+
+  const onDefaultExpandedObservationsTopChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const value = parseInt(event.target.value, 10);
+    onOptionsChange({
+      ...options,
+      jsonData: {
+        ...jsonData,
+        defaultExpandedObservationsTop: isNaN(value) ? undefined : value,
+      },
+    });
+  };
+
   const onOAuth2PasswordChange = (event: ChangeEvent<HTMLInputElement>) => {
     onOptionsChange({
       ...options,
@@ -176,7 +198,7 @@ export function ConfigEditor(props: Props) {
         />
       </InlineField>
 
-      <InlineField label="Client Secret" labelWidth={14} interactive tooltip={'OAuth2 client secret (stored securely)'}>
+      <InlineField label="Client Secret" labelWidth={18} interactive tooltip={'OAuth2 client secret (stored securely)'}>
         <SecretInput
           id="config-editor-oauth2-client-secret"
           isConfigured={secureJsonFields?.oauth2ClientSecret}
@@ -186,6 +208,28 @@ export function ConfigEditor(props: Props) {
           onReset={onResetOAuth2ClientSecret}
           onChange={onOAuth2ClientSecretChange}
           required
+        />
+      </InlineField>
+
+      <InlineField label="Default $top" labelWidth={18} interactive tooltip={'Default pagination size (e.g., 100). If not set, queries without $top will fetch all results.'}>
+        <Input
+          id="config-editor-default-top"
+          onChange={onDefaultTopChange}
+          value={jsonData.defaultTop || ''}
+          placeholder="100"
+          width={40}
+          type="number"
+        />
+      </InlineField>
+
+      <InlineField label="Expanded Obs $top" labelWidth={20} interactive tooltip={'Default pagination size for expanded Observations (e.g., 1000). If not set, defaults to 1000.'}>
+        <Input
+          id="config-editor-default-expanded-observations-top"
+          onChange={onDefaultExpandedObservationsTopChange}
+          value={jsonData.defaultExpandedObservationsTop || ''}
+          placeholder="1000"
+          width={40}
+          type="number"
         />
       </InlineField>
     </>

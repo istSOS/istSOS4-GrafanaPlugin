@@ -12,11 +12,12 @@ import {
   MetricFindValue,
 } from '@grafana/data';
 import { getBackendSrv, getTemplateSrv } from '@grafana/runtime';
+import { firstValueFrom } from 'rxjs';
 
 import { IstSOS4Query, MyDataSourceOptions, DEFAULT_QUERY, SensorThingsResponse } from './types';
 import { buildApiUrl } from './utils/queryBuilder';
 
-import { compareEntityNames } from './utils/utils';
+import { compareEntityNames, searchExpandEntity } from './utils/utils';
 import { transformDatastreams } from './transformations/datastream';
 import { transformThings } from 'transformations/thing';
 import { transformSensors } from 'transformations/sensor';
@@ -37,6 +38,153 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
   getDefaultQuery(_: CoreApp): Partial<IstSOS4Query> {
     return DEFAULT_QUERY;
   }
+
+  /**
+   * Method to handle pagination for SensorThings API responses
+   * Handles both single entity responses (when entityId is specified) and multiple entities responses
+   * Also handles pagination for expanded Observations within entities
+   * @param baseUrl The base API URL
+   * @param query The query object
+   * @param maxItems Maximum number of items to fetch (default: 10000)
+   * @returns Combined response with all paginated data
+   */
+  private async fetchAllPages(baseUrl: string, query: IstSOS4Query, maxItems = 10000): Promise<SensorThingsResponse> {
+    const modifiedQuery = { ...query };
+    const hasEntityId = modifiedQuery.entityId !== undefined;
+    const topDefined = modifiedQuery.top !== undefined;
+
+    if (!topDefined && !hasEntityId && this.instanceSettings.jsonData.defaultTop) {
+      modifiedQuery.top = this.instanceSettings.jsonData.defaultTop;
+    }
+    const hasExpandedObservations =
+    modifiedQuery.expand?.some((exp) => exp.entity === 'Observations') ||
+    (modifiedQuery.expression && searchExpandEntity(modifiedQuery.expression, 'Observations'));
+
+
+    console.log("has expanded observations:", hasExpandedObservations);
+    if (hasExpandedObservations) {
+      console.log('Query includes expanded Observations - pagination will be applied to expanded Observations arrays');
+      modifiedQuery.expand = modifiedQuery.expand?.map((exp) => {
+        if (exp.entity === 'Observations') {
+          return {
+            ...exp,
+            subQuery: {
+              ...exp.subQuery,
+              top: this.instanceSettings.jsonData.defaultExpandedObservationsTop || 1000,
+            },
+          };
+        }
+        return exp;
+      });
+    }
+    const queryURL = buildApiUrl(baseUrl, modifiedQuery);
+    console.log('Executing SensorThings API query:', queryURL);
+    const allData: any[] = [];
+    let nextUrl: string | undefined = queryURL;
+
+    while (nextUrl) {
+      if (allData.length > 0) {
+        nextUrl = nextUrl.replace(this.instanceSettings.jsonData.apiUrl || '', baseUrl);
+      }
+
+      console.log(`Fetching page: ${nextUrl}`);
+      const response: any = await firstValueFrom(
+        getBackendSrv().fetch({
+          url: nextUrl,
+          method: 'GET',
+        })
+      );
+
+      const pageData: any = response?.data;
+      if (!pageData) {
+        break;
+      }
+
+      if (hasEntityId) {
+        if (pageData['@iot.id'] !== undefined) {
+          if (hasExpandedObservations && pageData.Observations) {
+            await this.handleExpandedObservationsPagination(pageData, baseUrl);
+          }
+          allData.push(pageData);
+          console.log(`Fetched single entity with ID: ${pageData['@iot.id']}`);
+        }
+        break;
+      } else {
+        if (!pageData.value || !Array.isArray(pageData.value)) {
+          break;
+        }
+        if (hasExpandedObservations) {
+          for (const entity of pageData.value) {
+            if (entity.Observations) {
+              await this.handleExpandedObservationsPagination(entity, baseUrl);
+            }
+          }
+        }
+        allData.push(...pageData.value);
+        console.log(`Fetched ${pageData.value.length} items, total so far: ${allData.length}`);
+        if (topDefined) {
+          break;
+        }
+        nextUrl = pageData['@iot.nextLink'];
+      }
+    }
+
+    return {
+      value: allData,
+      '@iot.count': allData.length,
+      '@iot.nextLink': undefined,
+    };
+  }
+
+  /**
+   * Handle pagination for expanded Observations within an entity
+   * @param entity The entity containing expanded Observations
+   * @param baseUrl The base API URL
+   */
+  private async handleExpandedObservationsPagination(entity: any, baseUrl: string): Promise<void> {
+    if (!entity.Observations || !Array.isArray(entity.Observations)) {
+      return;
+    }
+    let nextObservationsUrl = entity['Observations@iot.nextLink'];
+    if (!nextObservationsUrl) {
+      return;
+    }
+
+    console.log(`Found expanded Observations with pagination for entity ${entity['@iot.id']}`);
+    const allObservations = [...entity.Observations];
+
+    while (nextObservationsUrl) {
+      nextObservationsUrl = nextObservationsUrl.replace(this.instanceSettings.jsonData.apiUrl || '', baseUrl);
+      console.log(`Fetching next page of Observations: ${nextObservationsUrl}`);
+
+      try {
+        const response: any = await firstValueFrom(
+          getBackendSrv().fetch({
+            url: nextObservationsUrl,
+            method: 'GET',
+          })
+        );
+
+        const observationsData: any = response?.data;
+        if (!observationsData || !observationsData.value || !Array.isArray(observationsData.value)) {
+          break;
+        }
+
+        allObservations.push(...observationsData.value);
+        console.log(
+          `Fetched ${observationsData.value.length} additional Observations, total: ${allObservations.length}`
+        );
+        nextObservationsUrl = observationsData['@iot.nextLink'];
+      } catch (error) {
+        console.error('Error fetching expanded Observations page:', error);
+        break;
+      }
+    }
+
+    entity.Observations = allObservations;
+    delete entity['Observations@iot.nextLink'];
+  }
+
   private applyCustomVariableSubstitution(expression: string, scopedVars: ScopedVars): string {
     if (!expression) {
       return expression;
@@ -69,7 +217,7 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
           if (filter.type !== 'variable') {
             return filter;
           }
-          
+
           const variableFilter = filter as any;
           const variableValue = getTemplateSrv().replace(variableFilter.variableName, scopedVars);
           console.log(
@@ -107,7 +255,7 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
    * If true, the response will be transformed into Grafana data frames.
    * it maybe useful for intermediate requests (when we do not need to display the response in Grafana panels).
    */
-  async query(options: DataQueryRequest<IstSOS4Query>, transformResponse: boolean = true): Promise<DataQueryResponse> {
+  async query(options: DataQueryRequest<IstSOS4Query>, transformResponse = true): Promise<DataQueryResponse> {
     const promises = options.targets.map(async (target) => {
       if (!this.filterQuery(target)) {
         return createDataFrame({ fields: [] });
@@ -116,22 +264,14 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
       try {
         const query = this.applyTemplateVariables(target, options.scopedVars);
         console.log('Query after variable substitution:', query);
-
         const routePath = '/sensorapi';
         const path = this.instanceSettings.jsonData.path || '';
         const baseUrl = `${this.url}${routePath}${path}`;
-        const apiUrl = buildApiUrl(baseUrl, query);
-        console.log('Executing SensorThings API query:', apiUrl);
-        const response = await getBackendSrv().datasourceRequest({
-          url: apiUrl,
-          method: 'GET',
-        });
-
+        const combinedResponse = await this.fetchAllPages(baseUrl, query);
         if (transformResponse) {
-          const result = this.transformResponse(response, query);
+          const result = this.transformResponse({ data: combinedResponse }, query);
           return Array.isArray(result) ? result : [result];
         } else {
-          const rawData = response.data as SensorThingsResponse;
           return createDataFrame({
             refId: target.refId,
             name: target.alias || target.entity,
@@ -139,14 +279,14 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
               {
                 name: 'entities',
                 type: FieldType.other,
-                values: [rawData.value || []],
+                values: [combinedResponse.value || []],
               },
             ],
             meta: {
               custom: {
-                rawResponse: rawData,
-                count: rawData['@iot.count'],
-                nextLink: rawData['@iot.nextLink'],
+                rawResponse: combinedResponse,
+                count: combinedResponse['@iot.count'],
+                nextLink: combinedResponse['@iot.nextLink'],
               },
             },
           });
@@ -203,10 +343,12 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
         const path = config.path || '';
         const testUrl = `${this.url}${routePath}${path}/Things`;
 
-        const response = await getBackendSrv().datasourceRequest({
-          url: testUrl,
-          method: 'GET',
-        });
+        const response = await firstValueFrom(
+          getBackendSrv().fetch({
+            url: testUrl,
+            method: 'GET',
+          })
+        );
         console.log('Connection test response:', response);
 
         return {
@@ -260,23 +402,16 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
       const routePath = '/sensorapi';
       const path = this.instanceSettings.jsonData.path || '';
       const baseUrl = `${this.url}${routePath}${path}`;
-      const apiUrl = buildApiUrl(baseUrl, modifiedQuery);
-      console.log('Executing SensorThings API query for variables:', apiUrl);
 
-      const response = await getBackendSrv().datasourceRequest({
-        url: apiUrl,
-        method: 'GET',
-      });
+      // Use pagination helper with smaller limit for variable queries
+      const responseData = await this.fetchAllPages(baseUrl, modifiedQuery);
 
-      const responseData = response.data as any;
-
-      if (!responseData || !responseData.value || !Array.isArray(responseData.value)) {
+      if (!responseData.value || !Array.isArray(responseData.value)) {
         return [];
       }
 
-      const entities = responseData.value as any[];
-      console.log('Entities are:', entities);
-      const result = entities.map((entity: any) => {
+      console.log('Total entities fetched:', responseData.value.length);
+      const result = responseData.value.map((entity: any) => {
         let text = entity.name || entity['@iot.id']?.toString() || '';
         let value = entity['@iot.id']?.toString() || '';
         return { text, value };
