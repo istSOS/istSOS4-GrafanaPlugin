@@ -11,7 +11,6 @@ import {
   BasicFilter,
   MeasurementFilter,
   SpatialFilter,
-  ComplexFilter,
   EntityType,
   ObservationFilter,
   PolygonCoordinates,
@@ -47,9 +46,6 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
   const getPossibleFilters = (entityType: EntityType): Array<SelectableValue<FilterType>> => {
     let available: Array<string> = [];
     switch (entityType) {
-      case 'Things':
-        available = ['basic'];
-        return FILTER_TYPES.filter((filterType) => filterType.value && available.includes(filterType.value));
       case 'Datastreams':
         return FILTER_TYPES;
       case 'Locations':
@@ -60,7 +56,8 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
         available = ['observation', 'entity'];
         return FILTER_TYPES.filter((filterType) => filterType.value && available.includes(filterType.value));
       default:
-        return [];
+        available=['basic'];
+        return FILTER_TYPES.filter((filterType) => filterType.value && available.includes(filterType.value));
     }
   };
 
@@ -147,12 +144,6 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
           rings: undefined, // Will be initialized when Polygon is selected
         } as SpatialFilter;
         break;
-      case 'complex':
-        newFilter = {
-          ...baseFilter,
-          expression: '',
-        } as ComplexFilter;
-        break;
       case 'observation':
         const defaultField = OBSERVATION_FIELDS[0].value!;
         newFilter = {
@@ -212,8 +203,6 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
         return renderMeasurementFilter(filter as MeasurementFilter, index);
       case 'spatial':
         return renderSpatialFilter(filter as SpatialFilter, index);
-      case 'complex':
-        return renderComplexFilter(filter as ComplexFilter, index);
       case 'observation':
         return renderObservationFilter(filter as ObservationFilter, index);
       case 'entity':
@@ -599,23 +588,6 @@ export const FilterPanel: React.FC<FilterPanelProps> = ({ entityType, filters, o
             </InlineField>
           </InlineFieldRow>
         )}
-      </div>
-    );
-  };
-
-  const renderComplexFilter = (filter: ComplexFilter, index: number) => {
-    return (
-      <div className={styles.filterForm}>
-        <InlineFieldRow>
-          <InlineField label="Expression" labelWidth={10} tooltip="Enter a valid OData filter expression">
-            <TextArea
-              value={filter.expression || ''}
-              onChange={(e) => updateFilter(filter.id, { expression: e.currentTarget.value })}
-              rows={5}
-              placeholder="e.g., unitOfMeasurement/name eq 'degree Celsius' and result gt 20"
-            />
-          </InlineField>
-        </InlineFieldRow>
       </div>
     );
   };

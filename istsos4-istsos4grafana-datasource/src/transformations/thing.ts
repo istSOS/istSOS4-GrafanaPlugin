@@ -2,6 +2,7 @@ import { SensorThingsResponse, IstSOS4Query } from 'types';
 import { createDataFrame } from '@grafana/data';
 import { FieldType } from '@grafana/data';
 import { transformBasicEntity, transformEntityWithDatastreams, getTransformedGeometry } from './generic';
+import { searchExpandEntity } from 'utils/utils';
 function transformThingsWithLocations(things: any[], target: IstSOS4Query) {
   const geojsonValues: string[] = [];
   const thingIds: number[] = [];
@@ -184,12 +185,15 @@ export function transformThings(data: SensorThingsResponse | any, target: IstSOS
       fields: [],
     });
   }
-  const isSingleThing = target.entityId !== undefined;
-  const things = isSingleThing ? [data] : data.value;
+  const things=data.value;
 
-  const hasExpandedDatastreams = target.expand?.some((exp) => exp.entity === 'Datastreams');
-  const hasExpandedLocations = target.expand?.some((exp) => exp.entity === 'Locations');
-  const hasExpandedHistoricalLocations = target.expand?.some((exp) => exp.entity === 'HistoricalLocations');
+const hasExpandedDatastreams =
+  target.expand?.some(exp => exp.entity === 'Datastreams') ||
+  (target.expression && searchExpandEntity(target.expression, 'Datastreams'));
+  const hasExpandedLocations = target.expand?.some((exp) => exp.entity === 'Locations') ||
+  (target.expression && searchExpandEntity(target.expression, 'Locations'));
+  const hasExpandedHistoricalLocations = target.expand?.some((exp) => exp.entity === 'HistoricalLocations') ||
+  (target.expression && searchExpandEntity(target.expression, 'HistoricalLocations'));
 
   if (hasExpandedDatastreams) return transformEntityWithDatastreams(things, target);
   if (hasExpandedLocations) return transformThingsWithLocations(things, target);

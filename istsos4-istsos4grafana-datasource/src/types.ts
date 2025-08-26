@@ -18,6 +18,7 @@ export interface IstSOS4Query extends DataQuery {
   skip?: number;
   count?: boolean;
   resultFormat?: ResultFormat;
+  expression?: string
   
   // Time-related queries
   asOf?: string;
@@ -48,6 +49,7 @@ export const DEFAULT_QUERY: Partial<IstSOS4Query> = {
   count: false,
   resultFormat: 'default',
   filters: [],
+  expression: '',
 };
 
 export interface Entity {
@@ -101,13 +103,9 @@ export type FilterType =
   | 'basic' 
   | 'measurement' 
   | 'spatial' 
-  | 'complex'
   | 'observation'
   | 'variable'
   | 'entity';
-
-
-
 
 export type FilterField = 
   | 'name'
@@ -134,7 +132,6 @@ export interface FilterCondition {
   field: FilterField;
   operator: ComparisonOperator | StringOperator | SpatialOperator | TemporalFunction;
   value: string | number | boolean | object | null;
-  expression?: string; // For complex filters
   // for variable filter
   entity?: EntityType;
 }
@@ -169,11 +166,6 @@ export interface SpatialFilter extends FilterCondition {
   geometryType: 'Point' | 'Polygon' | 'LineString';
   coordinates: any;
   rings?: PolygonCoordinates[];
-}
-
-export interface ComplexFilter extends FilterCondition {
-  type: 'complex';
-  expression: string;
 }
 
 export interface ObservationFilter extends FilterCondition {
@@ -335,6 +327,10 @@ export interface MyDataSourceOptions extends DataSourceJsonData {
   oauth2TokenUrl?: string;
   oauth2Username?: string;
   oauth2ClientId?: string;
+  // Default pagination size
+  defaultTop?: number;
+  // Default pagination size for expanded Observations
+  defaultExpandedObservationsTop?: number;
 }
 
 /**

@@ -50,13 +50,6 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
   const onEntityChange = (value: SelectableValue<EntityType>) => {
     const newQuery = { ...currentQuery, entity: value.value!, entityId: undefined };
 
-    // Auto Expanstions when the Entity is changed
-    if (value.value === 'Datastreams') {
-      newQuery.expand = newQuery.expand || [];
-      if (!newQuery.expand.some((exp) => exp.entity === 'Observations')) {
-        newQuery.expand.push({ entity: 'Observations' });
-      }
-    }
     if (value.value === 'HistoricalLocations') {
       newQuery.expand = newQuery.expand || [];
       if (!newQuery.expand.some((exp) => exp.entity === 'Locations')) {
@@ -106,6 +99,10 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     onChange({ ...currentQuery, alias: event.target.value });
   };
 
+  const onCustomQueryChange = (event: ChangeEvent<HTMLInputElement>) => {
+    onChange({ ...currentQuery, expression: event.target.value });
+  };
+
   const onExpandChange = (values: Array<SelectableValue<EntityType>>) => {
     const expandOptions: ExpandOption[] = values.map((value) => ({
       entity: value.value!,
@@ -136,12 +133,12 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
   };
 
   const previewQuery = () => {
-    const queryString = buildODataQuery(currentQuery,false);
+    const queryString = buildODataQuery(currentQuery, false);
     let fullUrl = `/${currentQuery.entity}`;
     const variableFilters = (currentQuery.filters || []).filter((f) => f.type === 'variable');
     const matchingVariable = variableFilters.find((vf) => compareEntityNames(vf.entity, currentQuery.entity));
     if (matchingVariable) {
-      fullUrl += `(\$${(matchingVariable as any).variableName})`;
+      fullUrl += `(${(matchingVariable as any).variableName})`;
     } else if (currentQuery.entityId !== undefined) {
       fullUrl += `(${currentQuery.entityId})`;
     }
@@ -265,13 +262,42 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
             </InlineField>
           </InlineFieldRow>
 
+          {/* Custom Query Field */}
+          <InlineFieldRow>
+            <InlineField 
+              label="Custom Query" 
+              labelWidth={12} 
+              tooltip="Enter a complete ISTSOS query fragment (e.g., $filter=name eq 'sensor1' or $filter=Thing/id eq '$Things')" 
+              grow
+            >
+              <Input 
+                value={currentQuery.expression || ''} 
+                onChange={onCustomQueryChange} 
+                placeholder="e.g., $filter=name eq 'sensor1' or $top=10&$filter=Thing/id eq '$Things'" 
+              />
+            </InlineField>
+          </InlineFieldRow>
+
           {/* Filter By Button */}
           <InlineFieldRow>
+            {currentQuery.expression && currentQuery.expression.trim() ? (
+              <div style={{ 
+                padding: '8px 12px', 
+                backgroundColor: '#1f2328', 
+                border: '1px solid #30363d', 
+                borderRadius: '4px',
+                fontSize: '12px',
+                color: '#7d8590'
+              }}>
+                ℹ️ Using custom query expression. Filters below are ignored when custom query is set.
+              </div>
+            ) : null}
             <Button
               variant={showFilters ? 'primary' : 'secondary'}
               onClick={() => setShowFilters(!showFilters)}
               icon={showFilters ? 'angle-down' : 'angle-right'}
               className={styles.filterButton}
+              disabled={!!(currentQuery.expression && currentQuery.expression.trim())}
             >
               Filter By{' '}
               {currentQuery.filters && currentQuery.filters.filter((f) => f.type !== 'variable').length > 0
@@ -296,6 +322,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
               onClick={() => setShowVariables(!showVariables)}
               icon={showVariables ? 'angle-down' : 'angle-right'}
               className={styles.filterButton}
+              disabled={!!(currentQuery.expression && currentQuery.expression.trim())}
             >
               Variables{' '}
               {(() => {

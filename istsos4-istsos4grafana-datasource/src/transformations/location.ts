@@ -11,8 +11,7 @@ export function transformLocations(data: SensorThingsResponse | any, target: Ist
   const locationDescriptions: string[] = [];
   const locationTypes: string[] = [];
 
-  const isSingleLocation = target.entityId !== undefined;
-  const locations = isSingleLocation ? [data] : data.value;
+  const locations = data.value;
 
   locations.forEach((location: any) => {
     let transformedGeometry: any = getTransformedGeometry(location.location);

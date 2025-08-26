@@ -105,6 +105,16 @@ export function createQueryBuilder(): QueryBuilder {
 export function buildODataQuery(query: IstSOS4Query, encode: boolean = true): string {
   const params: string[] = [];
 
+  // Check if custom query expression exists
+  if (query.expression && query.expression.trim()) {
+    const expression = query.expression.trim();
+    if (!expression.startsWith('?')) {
+      return `?${expression}`;
+    }
+    return expression;
+  }
+
+  // Fall back to existing filter logic only if no custom expression
   let observationFilters: FilterCondition[] = [];
   let nonObservationFilters: FilterCondition[] = [];
 
@@ -115,14 +125,11 @@ export function buildODataQuery(query: IstSOS4Query, encode: boolean = true): st
         !(f.type === 'variable' && compareEntityNames(f.entity, query.entity))
     );
   }
-  if (query.entity === 'Datastreams' && query.filters && query.filters.length) {
+
+  // Handle Datastreams with Observations expand
+  let observationsExpand = query.expand?.find((exp) => exp.entity === 'Observations');
+  if (query.entity === 'Datastreams' && observationsExpand && query.filters && query.filters.length) {
     observationFilters = query.filters.filter((f) => f.type === 'observation');
-    query.expand = query.expand || [];
-    let observationsExpand = query.expand.find((exp) => exp.entity === 'Observations');
-    if (!observationsExpand) {
-      observationsExpand = { entity: 'Observations' };
-      query.expand.push(observationsExpand);
-    }
     // If we have Observation filters, add them to the Observations expand
     if (observationFilters.length > 0) {
       const observationFilterExpression = buildFilterExpression(observationFilters);
@@ -132,7 +139,6 @@ export function buildODataQuery(query: IstSOS4Query, encode: boolean = true): st
         console.log('Applied observation filter to expand:', observationFilterExpression);
       }
     } else {
-      // If there are no Observation filters but there is an Observations expand with a filter,
       // remove the filter from the subQuery
       if (observationsExpand.subQuery?.filter) {
         const newSubQuery = { ...observationsExpand.subQuery };
@@ -154,19 +160,17 @@ export function buildODataQuery(query: IstSOS4Query, encode: boolean = true): st
       let expandStr = exp.entity;
       if (exp.entity === 'HistoricalLocations') {
         expandStr += '($expand=Locations)';
-        // TODO: Add support for other entities that have a subQuery
-        // else if may be wrong here, Fix it later
       }
       if (exp.subQuery) {
         const subParams: string[] = [];
-        if (exp.subQuery.filter) subParams.push(`$filter=${exp.subQuery.filter}`);
-        if (exp.subQuery.select) subParams.push(`$select=${exp.subQuery.select.join(',')}`);
+        if (exp.subQuery.filter) {subParams.push(`$filter=${exp.subQuery.filter}`)};
+        if (exp.subQuery.select) {subParams.push(`$select=${exp.subQuery.select.join(',')}`)};
         if (exp.subQuery.orderby) {
           const orderParts = exp.subQuery.orderby.map((o: OrderByOption) => `${o.property} ${o.direction}`);
           subParams.push(`$orderby=${orderParts.join(',')}`);
         }
-        if (exp.subQuery.top) subParams.push(`$top=${exp.subQuery.top}`);
-        if (exp.subQuery.skip) subParams.push(`$skip=${exp.subQuery.skip}`);
+        if (exp.subQuery.top) {subParams.push(`$top=${exp.subQuery.top}`)};
+        if (exp.subQuery.skip) {subParams.push(`$skip=${exp.subQuery.skip}`)};
 
         if (subParams.length > 0) {
           expandStr += `(${subParams.join(';')})`;
@@ -230,8 +234,6 @@ export function buildFilterExpression(filters: FilterCondition[]): string {
           return buildMeasurementFilter(filter);
         case 'spatial':
           return buildSpatialFilter(filter as SpatialFilter);
-        case 'complex':
-          return filter.expression;
         case 'observation':
           return buildObservationFilter(filter as ObservationFilter);
         case 'variable':
@@ -296,7 +298,7 @@ function buildVariableFilter(filter: VariableFilter): string {
     return `${filter.entity}/${filter.field} ${filter.operator} ${formatValue(filter.value)}`;
   }
   if (filter.variableName) {
-    return `${filter.entity}/${filter.field} ${filter.operator} $${filter.variableName}`;
+    return `${filter.entity}/${filter.field} ${filter.operator} ${filter.variableName}`;
   }
   return '';
 }

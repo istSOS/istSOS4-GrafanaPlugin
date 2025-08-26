@@ -9,9 +9,8 @@ export function transformHistoricalLocations(data: SensorThingsResponse | any, t
   const locationDescriptions: string[] = [];
   const locationTypes: string[] = [];
   const timeValues: number[] = [];
-
-  const isSingleLocation = target.entityId !== undefined;
-  const historicalLocations = isSingleLocation ? [data] : data.value;
+  
+  const historicalLocations = data.value;
 
   historicalLocations.forEach((histLoc: any) => {
     if (histLoc.Locations && histLoc.Locations.length > 0) {
