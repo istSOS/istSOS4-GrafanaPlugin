@@ -108,10 +108,8 @@ export function buildODataQuery(query: IstSOS4Query, encode: boolean = true): st
   // Check if custom query expression exists
   if (query.expression && query.expression.trim()) {
     const expression = query.expression.trim();
-    if (!expression.startsWith('?')) {
-      return `?${expression}`;
-    }
-    return expression;
+    const formattedExpression = expression.startsWith('?') ? expression : `?${expression}`;
+    return encode ? encodeURIComponent(formattedExpression) : formattedExpression;
   }
 
   // Fall back to existing filter logic only if no custom expression
@@ -155,31 +153,7 @@ export function buildODataQuery(query: IstSOS4Query, encode: boolean = true): st
     }
   }
 
-  if (query.expand && query.expand.length > 0) {
-    const expandParts = query.expand.map((exp) => {
-      let expandStr = exp.entity;
-      if (exp.entity === 'HistoricalLocations') {
-        expandStr += '($expand=Locations)';
-      }
-      if (exp.subQuery) {
-        const subParams: string[] = [];
-        if (exp.subQuery.filter) {subParams.push(`$filter=${exp.subQuery.filter}`)};
-        if (exp.subQuery.select) {subParams.push(`$select=${exp.subQuery.select.join(',')}`)};
-        if (exp.subQuery.orderby) {
-          const orderParts = exp.subQuery.orderby.map((o: OrderByOption) => `${o.property} ${o.direction}`);
-          subParams.push(`$orderby=${orderParts.join(',')}`);
-        }
-        if (exp.subQuery.top) {subParams.push(`$top=${exp.subQuery.top}`)};
-        if (exp.subQuery.skip) {subParams.push(`$skip=${exp.subQuery.skip}`)};
 
-        if (subParams.length > 0) {
-          expandStr += `(${subParams.join(';')})`;
-        }
-      }
-      return expandStr;
-    });
-    params.push(`$expand=${expandParts.join(',')}`);
-  }
 
   // Rest of the function remains unchanged
   if (query.select && query.select.length > 0) {
@@ -216,7 +190,34 @@ export function buildODataQuery(query: IstSOS4Query, encode: boolean = true): st
     params.push(`to=${encode ? encodeURIComponent(query.fromTo.to) : query.fromTo.to}`);
   }
 
-  return params.length > 0 ? `?${params.join('&')}` : '';
+  if (query.expand && query.expand.length > 0) {
+    const expandParts = query.expand.map((exp) => {
+      let expandStr = exp.entity;
+      if (exp.entity === 'HistoricalLocations') {
+        expandStr += '($expand=Locations)';
+      }
+      if (exp.subQuery) {
+        const subParams: string[] = [];
+        if (exp.subQuery.filter) {subParams.push(`$filter=${exp.subQuery.filter}`)};
+        if (exp.subQuery.select) {subParams.push(`$select=${exp.subQuery.select.join(',')}`)};
+        if (exp.subQuery.orderby) {
+          const orderParts = exp.subQuery.orderby.map((o: OrderByOption) => `${o.property} ${o.direction}`);
+          subParams.push(`$orderby=${orderParts.join(',')}`);
+        }
+        if (exp.subQuery.top) {subParams.push(`$top=${exp.subQuery.top}`)};
+        if (exp.subQuery.skip) {subParams.push(`$skip=${exp.subQuery.skip}`)};
+
+        if (subParams.length > 0) {
+          expandStr += `(${subParams.join(';')})`;
+        }
+      }
+      return expandStr;
+    });
+    params.push(`$expand=${expandParts.join(',')}`);
+  }
+
+  const queryString = params.length > 0 ? `?${params.join('&')}` : '';
+  return encode ? encodeURIComponent(queryString) : queryString;
 }
 
 /**
@@ -259,7 +260,7 @@ function buildTemporalFilter(filter: TemporalFilter): string {
     )}`;
   } else if (filter.operator && filter.value !== null && filter.value !== undefined) {
     if (['year', 'month', 'day', 'hour', 'minute', 'second'].includes(filter.operator)) {
-      return `${filter.operator}(${filter.field}) eq ${filter.value}`;
+    return `${filter.operator}(${filter.field}) eq ${filter.value}`;
     } else {
       return `${filter.field} ${filter.operator} ${formatValue(filter.value)}`;
     }

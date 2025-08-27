@@ -48,7 +48,8 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
    * @param maxItems Maximum number of items to fetch (default: 10000)
    * @returns Combined response with all paginated data
    */
-  private async fetchAllPages(baseUrl: string, query: IstSOS4Query, maxItems = 10000): Promise<SensorThingsResponse> {
+  private async fetchAllPages(baseUrl: string, query: IstSOS4Query): Promise<SensorThingsResponse> {
+    console.log("base url is", baseUrl);
     const modifiedQuery = { ...query };
     const hasEntityId = modifiedQuery.entityId !== undefined;
     const topDefined = modifiedQuery.top !== undefined;
@@ -63,7 +64,7 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
 
     console.log("has expanded observations:", hasExpandedObservations);
     if (hasExpandedObservations) {
-      console.log('Query includes expanded Observations - pagination will be applied to expanded Observations arrays');
+      console.log('Query includes expanded Observations');
       modifiedQuery.expand = modifiedQuery.expand?.map((exp) => {
         if (exp.entity === 'Observations') {
           return {
@@ -83,14 +84,23 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
     let nextUrl: string | undefined = queryURL;
 
     while (nextUrl) {
+      let cleanUrl = nextUrl;
+      
       if (allData.length > 0) {
-        nextUrl = nextUrl.replace(this.instanceSettings.jsonData.apiUrl || '', baseUrl);
+        // Extract the path part (entity path + query parameters) and encode it
+        // should be refactored and put on .env or constant fi;e
+        const urlParts = nextUrl.split('/v4/v1.1/');
+        if (urlParts.length > 1) {
+          const pathToEncode = urlParts[1]; 
+          const encodedPath = encodeURIComponent(pathToEncode);
+          cleanUrl = `${baseUrl}/${encodedPath}`;
+        }
       }
 
-      console.log(`Fetching page: ${nextUrl}`);
+      console.log(`Fetching page: ${cleanUrl}`);
       const response: any = await firstValueFrom(
         getBackendSrv().fetch({
-          url: nextUrl,
+          url: cleanUrl,
           method: 'GET',
         })
       );
@@ -121,11 +131,12 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
           }
         }
         allData.push(...pageData.value);
-        console.log(`Fetched ${pageData.value.length} items, total so far: ${allData.length}`);
         if (topDefined) {
           break;
         }
+        console
         nextUrl = pageData['@iot.nextLink'];
+        console.log("next url is",nextUrl);
       }
     }
 
@@ -154,16 +165,23 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
     const allObservations = [...entity.Observations];
 
     while (nextObservationsUrl) {
-      nextObservationsUrl = nextObservationsUrl.replace(this.instanceSettings.jsonData.apiUrl || '', baseUrl);
-      console.log(`Fetching next page of Observations: ${nextObservationsUrl}`);
+      // Extract the path part (entity path + query parameters) and encode it
+      // should be refactored and put on .env or constant fi;e
+      const urlParts = nextObservationsUrl.split('/v4/v1.1/');
+      if (urlParts.length > 1) {
+        const pathToEncode = urlParts[1];
+        const encodedPath = encodeURIComponent(pathToEncode);
+        const cleanUrl = `${baseUrl}/${encodedPath}`;
+        
+        console.log(`Fetching next page of Observations: ${cleanUrl}`);
 
-      try {
-        const response: any = await firstValueFrom(
-          getBackendSrv().fetch({
-            url: nextObservationsUrl,
-            method: 'GET',
-          })
-        );
+        try {
+          const response: any = await firstValueFrom(
+            getBackendSrv().fetch({
+              url: cleanUrl,
+              method: 'GET',
+            })
+          );
 
         const observationsData: any = response?.data;
         if (!observationsData || !observationsData.value || !Array.isArray(observationsData.value)) {
@@ -175,6 +193,7 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
           `Fetched ${observationsData.value.length} additional Observations, total: ${allObservations.length}`
         );
         nextObservationsUrl = observationsData['@iot.nextLink'];
+        console.log("from server",nextObservationsUrl);
       } catch (error) {
         console.error('Error fetching expanded Observations page:', error);
         break;
@@ -184,6 +203,7 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
     entity.Observations = allObservations;
     delete entity['Observations@iot.nextLink'];
   }
+}
 
   private applyCustomVariableSubstitution(expression: string, scopedVars: ScopedVars): string {
     if (!expression) {
@@ -196,17 +216,27 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
     return expression.replace(quotedVariablePattern, (match, quotedContent) => {
       // Apply template variable substitution only to content inside quotes
       const substituted = getTemplateSrv().replace(quotedContent, scopedVars);
+      
+      // Check if this looks like a CSV list (contains commas)
+      if (substituted.includes(',')) {
+        // Split by comma and wrap each value in quotes
+        const values = substituted.split(',').map(val => val.trim());
+        return `'${values.join("','")}'`;
+      }
+      
       return `'${substituted}'`;
     });
   }
 
+  // Apply Variables Subsitutation
+  // - if query.expression is defined, then it applies template variable substitution on the expression only
+  // - else it applies the filters defined in the Variable filters
   applyTemplateVariables(query: IstSOS4Query, scopedVars: ScopedVars) {
     let modifiedQuery = {
       ...query,
       alias: query.alias ? getTemplateSrv().replace(query.alias, scopedVars) : query.alias,
     };
 
-    // Handle custom query expression with special variable substitution
     if (modifiedQuery.expression) {
       modifiedQuery.expression = this.applyCustomVariableSubstitution(modifiedQuery.expression, scopedVars);
     }
@@ -234,7 +264,6 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
               modifiedQuery.entityId = numericValue;
               console.log(`Applied variable ${variableFilter.variableName} as entityId: ${numericValue}`);
               return null;
-              // Remove Variable filter that has entity equal to the query entity
             }
           }
           console.log(`Updated variable filter ${variableFilter.variableName} with value: ${variableValue}`);
@@ -397,20 +426,14 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
     console.log('Metric find query:', query);
     const modifiedQuery = this.applyTemplateVariables(query, options?.scopedVars);
     console.log('Modified query:', modifiedQuery);
-
     try {
       const routePath = '/sensorapi';
       const path = this.instanceSettings.jsonData.path || '';
       const baseUrl = `${this.url}${routePath}${path}`;
-
-      // Use pagination helper with smaller limit for variable queries
       const responseData = await this.fetchAllPages(baseUrl, modifiedQuery);
-
       if (!responseData.value || !Array.isArray(responseData.value)) {
         return [];
       }
-
-      console.log('Total entities fetched:', responseData.value.length);
       const result = responseData.value.map((entity: any) => {
         let text = entity.name || entity['@iot.id']?.toString() || '';
         let value = entity['@iot.id']?.toString() || '';
@@ -449,6 +472,7 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
     }
   }
 
+  // Fallback Transform function that gets the common fields on all entities
   private transformGeneric(data: SensorThingsResponse, target: IstSOS4Query) {
     if (!data.value || data.value.length === 0) {
       return createDataFrame({
@@ -461,7 +485,6 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
     const firstItem = data.value[0];
     const fields: any[] = [];
 
-    // Extract common fields
     if (firstItem['@iot.id'] !== undefined) {
       fields.push({
         name: 'id',
