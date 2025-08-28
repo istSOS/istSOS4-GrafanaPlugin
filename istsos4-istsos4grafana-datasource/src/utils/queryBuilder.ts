@@ -153,12 +153,11 @@ export function buildODataQuery(query: IstSOS4Query, encode: boolean = true): st
     }
   }
 
-
-
-  // Rest of the function remains unchanged
   if (query.select && query.select.length > 0) {
-    params.push(`$select=${query.select.join(',')}`);
+    const idExists = query.select.includes('id');
+    idExists?params.push(`$select=${query.select.join(',')}`): params.push(`$select=${['@iot.id', ...query.select].join(',')}`);
   }
+  
 
   if (query.orderby && query.orderby.length > 0) {
     const orderParts = query.orderby.map((o) => `${o.property} ${o.direction}`);

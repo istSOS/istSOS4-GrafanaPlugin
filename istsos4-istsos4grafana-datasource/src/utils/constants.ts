@@ -1,40 +1,57 @@
-import { SelectableValue } from "@grafana/data";
-import { EntityType, FilterField, FilterType, ComparisonOperator, StringOperator, SpatialOperator, TemporalFunction, Variable } from "../types";
+import { SelectableValue } from '@grafana/data';
+import {
+  EntityType,
+  FilterField,
+  FilterType,
+  ComparisonOperator,
+  StringOperator,
+  SpatialOperator,
+  TemporalFunction,
+  Variable,
+} from '../types';
 export const ENTITY_OPTIONS: Array<SelectableValue<EntityType>> = [
-    { label: 'Things', value: 'Things', description: 'Physical or virtual objects' },
-    { label: 'Locations', value: 'Locations', description: 'Geographic positions' },
-    { label: 'Sensors', value: 'Sensors', description: 'Measurement instruments' },
-    { label: 'Observed Properties', value: 'ObservedProperties', description: 'What is being measured' },
-    { label: 'Datastreams', value: 'Datastreams', description: 'Links Things, Sensors, and ObservedProperties' },
-    { label: 'Observations', value: 'Observations', description: 'Actual measurements' },
-    { label: 'Features of Interest', value: 'FeaturesOfInterest', description: 'Real-world features being observed' },
-    { label: 'Historical Locations', value: 'HistoricalLocations', description: 'Movement history of Things' },
-  ];
-  
- export const RESULT_FORMAT_OPTIONS: Array<SelectableValue<string>> = [
-    { label: 'Default', value: 'default' },
-    { label: 'Data Array', value: 'dataArray' },
-  ];
-  
- export const THINGS_EXPAND_OPTIONS: Array<SelectableValue<EntityType>> = [
-    { label: 'Locations', value: 'Locations', description: 'Include related locations' },
-    { label: 'Datastreams', value: 'Datastreams', description: 'Include related datastreams' },
-    { label: 'HistoricalLocations', value: 'HistoricalLocations', description: 'Include historical locations' },
-  ];
+  { label: 'Things', value: 'Things', description: 'Physical or virtual objects' },
+  { label: 'Locations', value: 'Locations', description: 'Geographic positions' },
+  { label: 'Sensors', value: 'Sensors', description: 'Measurement instruments' },
+  { label: 'Observed Properties', value: 'ObservedProperties', description: 'What is being measured' },
+  { label: 'Datastreams', value: 'Datastreams', description: 'Links Things, Sensors, and ObservedProperties' },
+  { label: 'Observations', value: 'Observations', description: 'Actual measurements' },
+  { label: 'Features of Interest', value: 'FeaturesOfInterest', description: 'Real-world features being observed' },
+  { label: 'Historical Locations', value: 'HistoricalLocations', description: 'Movement history of Things' },
+];
 
-  export const SENSORS_EXPAND_OPTIONS: Array<SelectableValue<EntityType>> = [
-    { label: 'Datastreams', value: 'Datastreams', description: 'Include related datastreams' },
-  ];
+export const RESULT_FORMAT_OPTIONS: Array<SelectableValue<string>> = [
+  { label: 'Default', value: 'default' },
+  { label: 'Data Array', value: 'dataArray' },
+];
+
+export const THINGS_EXPAND_OPTIONS: Array<SelectableValue<EntityType>> = [
+  { label: 'Locations', value: 'Locations', description: 'Include related locations' },
+  { label: 'Datastreams', value: 'Datastreams', description: 'Include related datastreams' },
+  { label: 'HistoricalLocations', value: 'HistoricalLocations', description: 'Include historical locations' },
+];
+export const SENSORS_EXPAND_OPTIONS: Array<SelectableValue<EntityType>> = [
+  { label: 'Datastreams', value: 'Datastreams', description: 'Include related datastreams' },
+];
 export const OBSERVED_PROPERTIES_EXPAND_OPTIONS: Array<SelectableValue<EntityType>> = [
-    { label: 'Datastreams', value: 'Datastreams', description: 'Include related datastreams' },
-  ];
-  export const FeaturesOfInterest_EXPAND_OPTIONS: Array<SelectableValue<EntityType>> = [
-    { label: 'Observations', value: 'Observations', description: 'Include related observations' }
-  ];
+  { label: 'Datastreams', value: 'Datastreams', description: 'Include related datastreams' },
+];
+export const FeaturesOfInterest_EXPAND_OPTIONS: Array<SelectableValue<EntityType>> = [
+  { label: 'Observations', value: 'Observations', description: 'Include related observations' },
+];
+export const LOCATIONS_EXPAND_OPTIONS: Array<SelectableValue<EntityType>> = [
+  { label: 'Things', value: 'Things', description: 'Include related things' },
+];
+export const HISTORICAL_LOCATIONS_EXPAND_OPTIONS: Array<SelectableValue<EntityType>> = [
+  { label: 'Locations', value: 'Locations', description: 'Include related locations' },
+];
+export const OBSERVATIONS_EXPAND_OPTIONS: Array<SelectableValue<EntityType>> = [
+  { label: 'Datastreams', value: 'Datastreams', description: 'Include related datastreams' },
+];
 
-  export const DATASTREAMS_EXPAND_OPTIONS: Array<SelectableValue<EntityType>> = [
-    { label: 'Observations', value: 'Observations', description: 'Include related observations' },
-  ];
+export const DATASTREAMS_EXPAND_OPTIONS: Array<SelectableValue<EntityType>> = [
+  { label: 'Observations', value: 'Observations', description: 'Include related observations' },
+];
 
 export const COMMON_FIELDS: Array<SelectableValue<FilterField>> = [
   { label: 'Name', value: 'name', description: 'Entity name' },
@@ -68,8 +85,12 @@ export const FILTER_TYPES: Array<SelectableValue<FilterType>> = [
   { label: 'Temporal', value: 'temporal', description: 'Filter by time-related properties' },
   { label: 'Measurement', value: 'measurement', description: 'Filter by measurement values or units' },
   { label: 'Spatial', value: 'spatial', description: 'Filter by geographic location' },
-  { label:'Observation', value: 'observation', description: 'Filter by observation properties' },
-  { label: 'Entity', value: 'entity', description: 'Filter by related entity properties (e.g., Sensor/id, Thing/name)' },
+  { label: 'Observation', value: 'observation', description: 'Filter by observation properties' },
+  {
+    label: 'Entity',
+    value: 'entity',
+    description: 'Filter by related entity properties (e.g., Sensor/id, Thing/name)',
+  },
 ];
 
 export const COMPARISON_OPERATORS: Array<SelectableValue<ComparisonOperator>> = [
@@ -105,14 +126,20 @@ export const GEOMETRY_TYPES: Array<SelectableValue<string>> = [
   { label: 'Point', value: 'Point', description: 'A single point (x, y)' },
   { label: 'Polygon', value: 'Polygon', description: 'A polygon defined by points' },
   { label: 'LineString', value: 'LineString', description: 'A line defined by points' },
-]; 
+];
 
 export const VARIABLE_OPTIONS: Array<SelectableValue<Variable>> = [
   { label: 'Things', value: { name: 'Things', entity: 'Things' }, description: 'Physical or virtual objects' },
   { label: 'Locations', value: { name: 'Locations', entity: 'Locations' }, description: 'Geographic positions' },
   { label: 'Sensors', value: { name: 'Sensors', entity: 'Sensors' }, description: 'Measurement instruments' },
-  { label: 'Observed Properties', value: { name: 'ObservedProperties', entity: 'ObservedProperties' }, description: 'What is being measured' },
-  { label: 'Datastreams', value: { name: 'Datastreams', entity: 'Datastreams' }, description: 'Links Things, Sensors, and ObservedProperties' },
+  {
+    label: 'Observed Properties',
+    value: { name: 'ObservedProperties', entity: 'ObservedProperties' },
+    description: 'What is being measured',
+  },
+  {
+    label: 'Datastreams',
+    value: { name: 'Datastreams', entity: 'Datastreams' },
+    description: 'Links Things, Sensors, and ObservedProperties',
+  },
 ];
-
-

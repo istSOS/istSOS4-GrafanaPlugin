@@ -17,8 +17,6 @@ export function transformDatastreams(data: SensorThingsResponse | any, target: I
   console.log('Processing multiple datastreams');
   const datastreams = data.value;
   if (hasExpandedObservations) {
-    console.log('Creating separate DataFrames for each datastream with observations');
-
     const frames = datastreams
       .filter((ds: any) => ds.Observations && ds.Observations.length > 0)
       .map((ds: any) => {
@@ -85,8 +83,6 @@ export function transformDatastreams(data: SensorThingsResponse | any, target: I
       return frames;
     }
   }
-
-  // Default behavior for multiple datastreams without observations
   const ids: number[] = [];
   const names: string[] = [];
   const descriptions: string[] = [];

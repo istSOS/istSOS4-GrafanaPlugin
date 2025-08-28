@@ -212,18 +212,12 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
 
     // Regular expression to find content within single quotes that contains $
     const quotedVariablePattern = /'([^']*\$[^']*)'/g;
-
     return expression.replace(quotedVariablePattern, (match, quotedContent) => {
-      // Apply template variable substitution only to content inside quotes
       const substituted = getTemplateSrv().replace(quotedContent, scopedVars);
-      
-      // Check if this looks like a CSV list (contains commas)
       if (substituted.includes(',')) {
-        // Split by comma and wrap each value in quotes
         const values = substituted.split(',').map(val => val.trim());
         return `'${values.join("','")}'`;
       }
-      
       return `'${substituted}'`;
     });
   }

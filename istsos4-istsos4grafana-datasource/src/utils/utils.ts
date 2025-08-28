@@ -1,17 +1,32 @@
-import proj4 from "proj4";
-import { GrafanaTheme2 } from "@grafana/data";
-import { css } from "@emotion/css";
-import { EntityType } from "types";
-import { SelectableValue } from '@grafana/data';
-import { SENSORS_EXPAND_OPTIONS, THINGS_EXPAND_OPTIONS, DATASTREAMS_EXPAND_OPTIONS, OBSERVED_PROPERTIES_EXPAND_OPTIONS, FeaturesOfInterest_EXPAND_OPTIONS } from "./constants";
-// EPSG:2056 (CH1903+ / LV95)
-proj4.defs("EPSG:2056", "+proj=somerc +lat_0=46.95240555555556 +lon_0=7.439583333333333 +k=1 +x_0=2600000 +y_0=1200000 +ellps=bessel +units=m +no_defs");
-
-export const convertEPSG2056ToWGS84 = (x: number, y: number): [number, number] => {
-  return [x,y];
-  const [lon, lat] = proj4("EPSG:2056", "WGS84", [x, y]);
-  return [lon, lat];
-};
+import proj4 from 'proj4';
+import { GrafanaTheme2,SelectableValue} from '@grafana/data';
+import { css } from '@emotion/css';
+import { EntityType } from 'types';
+import {
+  SENSORS_EXPAND_OPTIONS,
+  THINGS_EXPAND_OPTIONS,
+  DATASTREAMS_EXPAND_OPTIONS,
+  OBSERVED_PROPERTIES_EXPAND_OPTIONS,
+  FeaturesOfInterest_EXPAND_OPTIONS,
+  LOCATIONS_EXPAND_OPTIONS,
+  OBSERVATIONS_EXPAND_OPTIONS,
+  HISTORICAL_LOCATIONS_EXPAND_OPTIONS,
+} from './constants';
+function loadCRSDefinition(epsgCode: string) {
+  if (proj4.defs(epsgCode)) {
+    return; 
+  }
+  throw new Error(`CRS definition for ${epsgCode} not supported currently`);
+  // should be implemented by fetching from epsg.io
+  // This would require changing too many functions to be async
+}
+export function convertToWGS84(
+  crs: string,
+  coordinates: [number, number]
+): [number, number] {
+  loadCRSDefinition(crs);
+  return proj4(crs, "WGS84", coordinates);
+}
 
 export const formatPhenomenonTime = (phenomenonTime: string | null | undefined): string => {
   if (!phenomenonTime) {
@@ -42,57 +57,63 @@ export const compareEntityNames = (variableEntity: string | undefined, queryEnti
   if (!variableEntity || !queryEntity) {
     return false;
   }
-  if (queryEntity=== 'ObservedProperties') return variableEntity === 'ObservedProperty';
+  if (queryEntity === 'ObservedProperties') return variableEntity === 'ObservedProperty';
   return variableEntity === queryEntity.slice(0, -1);
 };
 
 export const parseCoordinateString = (coordStr: string): [number, number][] => {
-      if (!coordStr.trim()) return [];
-      
-      const coords = coordStr.split(',').map(s => parseFloat(s.trim())).filter(n => !isNaN(n));
-      const pairs: [number, number][] = [];
-      
-      for (let i = 0; i < coords.length - 1; i += 2) {
-        if (i + 1 < coords.length) {
-          pairs.push([coords[i], coords[i + 1]]);
-        }
-      }
-      
-      return pairs;
-    };
+  if (!coordStr.trim()) return [];
+
+  const coords = coordStr
+    .split(',')
+    .map((s) => parseFloat(s.trim()))
+    .filter((n) => !isNaN(n));
+  const pairs: [number, number][] = [];
+
+  for (let i = 0; i < coords.length - 1; i += 2) {
+    if (i + 1 < coords.length) {
+      pairs.push([coords[i], coords[i + 1]]);
+    }
+  }
+
+  return pairs;
+};
 
 export const ensureClosedRing = (coords: [number, number][]): [number, number][] => {
-      if (coords.length === 0) return coords;
-      
-      const first = coords[0];
-      const last = coords[coords.length - 1];
-      
-      if (first[0] !== last[0] || first[1] !== last[1]) {
-        return [...coords, first];
-      }
-      
-      return coords;
-    };
+  if (coords.length === 0) return coords;
+
+  const first = coords[0];
+  const last = coords[coords.length - 1];
+
+  if (first[0] !== last[0] || first[1] !== last[1]) {
+    return [...coords, first];
+  }
+
+  return coords;
+};
 
 export const searchExpandEntity = (expression: string, entityType: string): boolean => {
-  console.log("expression:", expression);
-  if (!expression || !entityType) {return false;}
+  console.log('expression:', expression);
+  if (!expression || !entityType) {
+    return false;
+  }
   const expandMatch = expression.match(/\$expand=([^&]*)/);
-  if (!expandMatch) {return false;}
+  if (!expandMatch) {
+    return false;
+  }
   const expandPart = expandMatch[1];
 
-  const expandedEntities = expandPart.split(",").map(e => {
+  const expandedEntities = expandPart.split(',').map((e) => {
     const trimmed = e.trim();
     const bracketIndex = trimmed.indexOf('(');
     return bracketIndex !== -1 ? trimmed.substring(0, bracketIndex) : trimmed;
   });
-  console.log("expanded entities:", expandedEntities);
-    return expandedEntities.includes(entityType);
+  console.log('expanded entities:', expandedEntities);
+  return expandedEntities.includes(entityType);
 };
 
-
 export const getSingularEntityName = (entity: string): string => {
-  if (entity==='ObservedProperties') {
+  if (entity === 'ObservedProperties') {
     return 'ObservedProperty';
   }
   return entity.slice(0, -1);
@@ -115,20 +136,21 @@ export const getStyles = (theme: GrafanaTheme2) => {
     table: css`
       width: 100%;
       border-collapse: collapse;
-      
-      th, td {
+
+      th,
+      td {
         padding: 8px;
         text-align: left;
         border-bottom: 1px solid ${theme.colors.border.weak};
       }
-      
+
       th {
         background-color: ${theme.colors.background.secondary};
         position: sticky;
         top: 0;
         z-index: 1;
       }
-      
+
       tr:hover {
         background-color: ${theme.colors.background.secondary};
       }
@@ -167,7 +189,6 @@ export const getStyles = (theme: GrafanaTheme2) => {
   };
 };
 
-
 export function getExpandOptions(type: EntityType): SelectableValue<EntityType>[] {
   switch (type) {
     case 'Things':
@@ -178,8 +199,14 @@ export function getExpandOptions(type: EntityType): SelectableValue<EntityType>[
       return SENSORS_EXPAND_OPTIONS;
     case 'ObservedProperties':
       return OBSERVED_PROPERTIES_EXPAND_OPTIONS;
-      case 'FeaturesOfInterest':
-        return FeaturesOfInterest_EXPAND_OPTIONS;
+    case 'FeaturesOfInterest':
+      return FeaturesOfInterest_EXPAND_OPTIONS;
+    case 'Locations':
+      return LOCATIONS_EXPAND_OPTIONS;
+    case 'HistoricalLocations':
+      return HISTORICAL_LOCATIONS_EXPAND_OPTIONS;
+    case 'Observations':
+      return OBSERVATIONS_EXPAND_OPTIONS;
     default:
       return [];
   }
