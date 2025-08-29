@@ -346,7 +346,7 @@ Function for Custom Query Expression Variable Subsitutation(focus on the $vars w
       try {
         const routePath = '/sensorapi';
         const path = config.path || '';
-        const testUrl = `${this.url}${routePath}${path}/Things`;
+        const testUrl = `${this.url}${routePath}${path}/`;
 
         const response = await firstValueFrom(
           getBackendSrv().fetch({
