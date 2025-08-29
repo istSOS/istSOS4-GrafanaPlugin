@@ -165,9 +165,9 @@ https://github.com/user-attachments/assets/1dca6ac3-14b3-48a4-9c5d-725894247fca
 
 ## 🛠️ Installation & Development Setup
 
-* Follow the documentation [Development Guide](/istsos4-istsos4grafana-datasource/docs/development_guide.md) for The development Guide and How to contrubite to the plugin 
+* Follow the [development Guide](/istsos4-istsos4grafana-datasource/docs/development_guide.md) for plugin setup and How to contrubite to the plugin 
 ---
-## Example Panels
+## 📊 Example Panels
 <img width="1843" height="943" alt="obs" src="https://github.com/user-attachments/assets/4f3dc74c-2cd4-409c-98e7-ab97a7f96905" />
 <img width="1843" height="539" alt="Gauge" src="https://github.com/user-attachments/assets/1601c25b-bd53-4e68-b475-f3a7c027553a" />
 
