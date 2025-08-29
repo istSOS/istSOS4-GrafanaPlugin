@@ -15,7 +15,7 @@ import { getBackendSrv, getTemplateSrv } from '@grafana/runtime';
 import { firstValueFrom } from 'rxjs';
 
 import { IstSOS4Query, MyDataSourceOptions, DEFAULT_QUERY, SensorThingsResponse } from './types';
-import { buildApiUrl } from './utils/queryBuilder';
+import { buildApiUrl } from './queryBuilder';
 
 import { compareEntityNames, searchExpandEntity } from './utils/utils';
 import { transformDatastreams } from './transformations/datastream';
@@ -45,11 +45,9 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
    * Also handles pagination for expanded Observations within entities
    * @param baseUrl The base API URL
    * @param query The query object
-   * @param maxItems Maximum number of items to fetch (default: 10000)
    * @returns Combined response with all paginated data
    */
   private async fetchAllPages(baseUrl: string, query: IstSOS4Query): Promise<SensorThingsResponse> {
-    console.log("base url is", baseUrl);
     const modifiedQuery = { ...query };
     const hasEntityId = modifiedQuery.entityId !== undefined;
     const topDefined = modifiedQuery.top !== undefined;
@@ -60,9 +58,6 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
     const hasExpandedObservations =
     modifiedQuery.expand?.some((exp) => exp.entity === 'Observations') ||
     (modifiedQuery.expression && searchExpandEntity(modifiedQuery.expression, 'Observations'));
-
-
-    console.log("has expanded observations:", hasExpandedObservations);
     if (hasExpandedObservations) {
       console.log('Query includes expanded Observations');
       modifiedQuery.expand = modifiedQuery.expand?.map((exp) => {
@@ -85,7 +80,6 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
 
     while (nextUrl) {
       let cleanUrl = nextUrl;
-      console.log("url is",cleanUrl)
       
       if (allData.length > 0) {
         const urlParts = nextUrl.split(this.instanceSettings.jsonData.apiUrl || '');
@@ -95,8 +89,6 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
           cleanUrl = `${baseUrl}/${encodedPath}`;
         }
       }
-
-      console.log(`Fetching page: ${cleanUrl}`);
       const response: any = await firstValueFrom(
         getBackendSrv().fetch({
           url: cleanUrl,
@@ -115,7 +107,6 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
             await this.handleExpandedObservationsPagination(pageData, baseUrl);
           }
           allData.push(pageData);
-          console.log(`Fetched single entity with ID: ${pageData['@iot.id']}`);
         }
         break;
       } else {
@@ -134,7 +125,6 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
           break;
         }
         nextUrl = pageData['@iot.nextLink'];
-        console.log("next url is",nextUrl);
       }
     }
 
@@ -159,7 +149,6 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
       return;
     }
 
-    console.log(`Found expanded Observations with pagination for entity ${entity['@iot.id']}`);
     const allObservations = [...entity.Observations];
 
     while (nextObservationsUrl) {
@@ -168,7 +157,6 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
         const pathToEncode = urlParts[1];
         const encodedPath = encodeURIComponent(pathToEncode);
         const cleanUrl = `${baseUrl}/${encodedPath}`;
-        
         console.log(`Fetching next page of Observations: ${cleanUrl}`);
 
         try {
@@ -189,7 +177,6 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
           `Fetched ${observationsData.value.length} additional Observations, total: ${allObservations.length}`
         );
         nextObservationsUrl = observationsData['@iot.nextLink'];
-        console.log("from server",nextObservationsUrl);
       } catch (error) {
         console.error('Error fetching expanded Observations page:', error);
         break;
@@ -200,12 +187,13 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
     delete entity['Observations@iot.nextLink'];
   }
 }
-
+/*
+Function for Custom Query Expression Variable Subsitutation(focus on the $vars within Single quotes)
+*/
   private applyCustomVariableSubstitution(expression: string, scopedVars: ScopedVars): string {
     if (!expression) {
       return expression;
     }
-
     // Regular expression to find content within single quotes that contains $
     const quotedVariablePattern = /'([^']*\$[^']*)'/g;
     return expression.replace(quotedVariablePattern, (match, quotedContent) => {
@@ -237,13 +225,8 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
           if (filter.type !== 'variable') {
             return filter;
           }
-
           const variableFilter = filter as any;
           const variableValue = getTemplateSrv().replace(variableFilter.variableName, scopedVars);
-          console.log(
-            `Processing variable filter: ${variableFilter.variableName}, entity: ${variableFilter.entity}, value: ${variableValue}`
-          );
-
           if (!variableValue || variableValue === variableFilter.variableName) {
             return { ...variableFilter, value: null };
           }
@@ -256,7 +239,6 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
               return null;
             }
           }
-          console.log(`Updated variable filter ${variableFilter.variableName} with value: ${variableValue}`);
           return { ...variableFilter, value: variableValue };
         })
 
@@ -273,6 +255,7 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
    * transformResponse: weather to transform the response into Grafana data frames or return raw data.
    * If true, the response will be transformed into Grafana data frames.
    * it maybe useful for intermediate requests (when we do not need to display the response in Grafana panels).
+   * Default Grafana function that is get triggered when hitting the RunQuery button
    */
   async query(options: DataQueryRequest<IstSOS4Query>, transformResponse = true): Promise<DataQueryResponse> {
     const promises = options.targets.map(async (target) => {
@@ -327,7 +310,10 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
     const data = results.flat();
     return { data };
   }
-
+  /*
+  Function to test the API that is being entered by the user
+  Grafana Specific
+  */
   async testDatasource(): Promise<TestDataSourceResponse> {
     try {
       const config = this.instanceSettings.jsonData;
@@ -411,9 +397,12 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
       };
     }
   }
-
+  /*
+   * Grafana specific function that gets called on Variable editor changes
+     Logic that should be triggered on change in Variable QueryEditor should be applied here
+   */
   async metricFindQuery(query: IstSOS4Query, options?: any): Promise<MetricFindValue[]> {
-    console.log('Metric find query:', query);
+    console.log('Original query:', query);
     const modifiedQuery = this.applyTemplateVariables(query, options?.scopedVars);
     console.log('Modified query:', modifiedQuery);
     try {
@@ -439,7 +428,6 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
   // Transform SensorThings API response to Grafana data frames
   private transformResponse(response: any, target: IstSOS4Query): DataFrame | DataFrame[] {
     const data = response.data as SensorThingsResponse;
-    console.log('SensorThings API Response:', data);
     switch (target.entity) {
       case 'Observations':
         return transformObservations(data, target);

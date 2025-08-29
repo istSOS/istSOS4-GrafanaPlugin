@@ -9,8 +9,8 @@ import {
   ObservationFilter,
   VariableFilter,
   EntityFilter,
-} from '../types';
-import { compareEntityNames, getSingularEntityName } from './utils';
+} from './types';
+import { compareEntityNames, getSingularEntityName } from './utils/utils';
 
 /*
 This file contains the Query Builder class.
@@ -425,49 +425,3 @@ export function buildApiUrl(baseUrl: string, query: IstSOS4Query): string {
 
   return url;
 }
-
-/**
- * Common filter expressions for SensorThings API
- */
-export const FilterExpressions = {
-  // Comparison operators
-  equals: (property: string, value: string | number) =>
-    `${property} eq ${typeof value === 'string' ? `'${value}'` : value}`,
-  notEquals: (property: string, value: string | number) =>
-    `${property} ne ${typeof value === 'string' ? `'${value}'` : value}`,
-  greaterThan: (property: string, value: string | number) =>
-    `${property} gt ${typeof value === 'string' ? `'${value}'` : value}`,
-  greaterThanOrEqual: (property: string, value: string | number) =>
-    `${property} ge ${typeof value === 'string' ? `'${value}'` : value}`,
-  lessThan: (property: string, value: string | number) =>
-    `${property} lt ${typeof value === 'string' ? `'${value}'` : value}`,
-  lessThanOrEqual: (property: string, value: string | number) =>
-    `${property} le ${typeof value === 'string' ? `'${value}'` : value}`,
-
-  // String functions
-  startsWith: (property: string, value: string) => `startswith(${property},'${value}')`,
-  endsWith: (property: string, value: string) => `endswith(${property},'${value}')`,
-  substringof: (property: string, value: string) => `substringof('${value}',${property})`,
-
-  // Date/time functions
-  year: (property: string, value: number) => `year(${property}) eq ${value}`,
-  month: (property: string, value: number) => `month(${property}) eq ${value}`,
-  day: (property: string, value: number) => `day(${property}) eq ${value}`,
-  hour: (property: string, value: number) => `hour(${property}) eq ${value}`,
-  minute: (property: string, value: number) => `minute(${property}) eq ${value}`,
-  second: (property: string, value: number) => `second(${property}) eq ${value}`,
-
-  // Time range
-  timeRange: (property: string, from: string, to: string) => `${property} ge ${from} and ${property} le ${to}`,
-
-  // Logical operators
-  and: (...expressions: string[]) => expressions.join(' and '),
-  or: (...expressions: string[]) => expressions.join(' or '),
-  not: (expression: string) => `not (${expression})`,
-
-  // Spatial functions (for Location entities)
-  within: (property: string, geometry: string) => `st_within(${property}, ${geometry})`,
-  intersects: (property: string, geometry: string) => `st_intersects(${property}, ${geometry})`,
-  distance: (property: string, geometry: string, distance: number) =>
-    `st_distance(${property}, ${geometry}) le ${distance}`,
-};

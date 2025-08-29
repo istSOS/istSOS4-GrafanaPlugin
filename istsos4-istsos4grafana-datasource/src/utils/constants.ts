@@ -36,7 +36,7 @@ export const SENSORS_EXPAND_OPTIONS: Array<SelectableValue<EntityType>> = [
 export const OBSERVED_PROPERTIES_EXPAND_OPTIONS: Array<SelectableValue<EntityType>> = [
   { label: 'Datastreams', value: 'Datastreams', description: 'Include related datastreams' },
 ];
-export const FeaturesOfInterest_EXPAND_OPTIONS: Array<SelectableValue<EntityType>> = [
+export const FEATURE_OF_INTEREST_EXPAND_OPTIONS: Array<SelectableValue<EntityType>> = [
   { label: 'Observations', value: 'Observations', description: 'Include related observations' },
 ];
 export const LOCATIONS_EXPAND_OPTIONS: Array<SelectableValue<EntityType>> = [

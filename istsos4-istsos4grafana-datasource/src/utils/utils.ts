@@ -7,27 +7,53 @@ import {
   THINGS_EXPAND_OPTIONS,
   DATASTREAMS_EXPAND_OPTIONS,
   OBSERVED_PROPERTIES_EXPAND_OPTIONS,
-  FeaturesOfInterest_EXPAND_OPTIONS,
+  FEATURE_OF_INTEREST_EXPAND_OPTIONS,
   LOCATIONS_EXPAND_OPTIONS,
   OBSERVATIONS_EXPAND_OPTIONS,
   HISTORICAL_LOCATIONS_EXPAND_OPTIONS,
 } from './constants';
-function loadCRSDefinition(epsgCode: string) {
+
+// common registrations
+proj4.defs([
+  [
+    "EPSG:4326", // WGS84
+    "+proj=longlat +datum=WGS84 +no_defs"
+  ],
+  [
+    "EPSG:3857", // Web Mercator
+    "+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=0.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext +no_defs"
+  ],
+  [
+    "EPSG:2056", // Swiss LV95
+    "+proj=somerc +lat_0=46.95240555555556 +lon_0=7.439583333333333 +k_0=1 +x_0=2600000 +y_0=1200000 +ellps=bessel +towgs84=674.374,15.056,405.346,0,0,0,0 +units=m +no_defs"
+  ]
+]);
+
+// Helper to load known definitions
+function loadCRSDefinition(epsgCode: string): void {
   if (proj4.defs(epsgCode)) {
-    return; 
+    return;
   }
+  // For now, throw an error for unsupported CRS
+  // In the future, this could fetch from epsg.io
   throw new Error(`CRS definition for ${epsgCode} not supported currently`);
-  // should be implemented by fetching from epsg.io
-  // This would require changing too many functions to be async
 }
+
 export function convertToWGS84(
   crs: string,
   coordinates: [number, number]
 ): [number, number] {
-  loadCRSDefinition(crs);
-  return proj4(crs, "WGS84", coordinates);
+  try {
+    loadCRSDefinition(crs);
+    console.log(`Converting coordinates from ${crs} to EPSG:4326:`, coordinates);    
+    const result = proj4(crs, "EPSG:4326", coordinates);
+    console.log(`Converted result:`, result);
+    return result;
+  } catch (error) {
+    console.error("Error in coordinate conversion:", error);
+    return [NaN, NaN];
+  }
 }
-
 export const formatPhenomenonTime = (phenomenonTime: string | null | undefined): string => {
   if (!phenomenonTime) {
     return '';
@@ -50,17 +76,20 @@ export const formatPhenomenonTime = (phenomenonTime: string | null | undefined):
     return phenomenonTime;
   }
 };
-
+/*
+  Removes the last character from queryEntity to match variableEntity
+  currently following this approach to modify in the future in one place
+*/
 export const compareEntityNames = (variableEntity: string | undefined, queryEntity: string | undefined): boolean => {
-  // Remove the last character from queryEntity to match variableEntity
-  // currently following this approach to modify in the future in one place
   if (!variableEntity || !queryEntity) {
     return false;
   }
   if (queryEntity === 'ObservedProperties') return variableEntity === 'ObservedProperty';
   return variableEntity === queryEntity.slice(0, -1);
 };
-
+/*
+Gets the coordinates as an array from a string(WKT format) 
+*/
 export const parseCoordinateString = (coordStr: string): [number, number][] => {
   if (!coordStr.trim()) return [];
 
@@ -93,7 +122,6 @@ export const ensureClosedRing = (coords: [number, number][]): [number, number][]
 };
 
 export const searchExpandEntity = (expression: string, entityType: string): boolean => {
-  console.log('expression:', expression);
   if (!expression || !entityType) {
     return false;
   }
@@ -108,7 +136,6 @@ export const searchExpandEntity = (expression: string, entityType: string): bool
     const bracketIndex = trimmed.indexOf('(');
     return bracketIndex !== -1 ? trimmed.substring(0, bracketIndex) : trimmed;
   });
-  console.log('expanded entities:', expandedEntities);
   return expandedEntities.includes(entityType);
 };
 
@@ -200,7 +227,7 @@ export function getExpandOptions(type: EntityType): SelectableValue<EntityType>[
     case 'ObservedProperties':
       return OBSERVED_PROPERTIES_EXPAND_OPTIONS;
     case 'FeaturesOfInterest':
-      return FeaturesOfInterest_EXPAND_OPTIONS;
+      return FEATURE_OF_INTEREST_EXPAND_OPTIONS;
     case 'Locations':
       return LOCATIONS_EXPAND_OPTIONS;
     case 'HistoricalLocations':

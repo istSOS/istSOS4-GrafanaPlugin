@@ -14,7 +14,7 @@ import {
 import { QueryEditorProps, SelectableValue } from '@grafana/data';
 import { DataSource } from '../datasource';
 import { MyDataSourceOptions, IstSOS4Query, EntityType, ExpandOption, FilterCondition } from '../types';
-import { buildODataQuery } from '../utils/queryBuilder';
+import { buildODataQuery } from '../queryBuilder';
 import { FilterPanel } from './FilterPanel';
 import { VariablesPanel } from './VariablesPanel';
 import { ENTITY_OPTIONS, RESULT_FORMAT_OPTIONS } from '../utils/constants';
