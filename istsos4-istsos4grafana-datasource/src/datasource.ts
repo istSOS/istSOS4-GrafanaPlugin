@@ -85,11 +85,10 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
 
     while (nextUrl) {
       let cleanUrl = nextUrl;
+      console.log("url is",cleanUrl)
       
       if (allData.length > 0) {
-        // Extract the path part (entity path + query parameters) and encode it
-        // should be refactored and put on .env or constant fi;e
-        const urlParts = nextUrl.split('/v4/v1.1/');
+        const urlParts = nextUrl.split(this.instanceSettings.jsonData.apiUrl || '');
         if (urlParts.length > 1) {
           const pathToEncode = urlParts[1]; 
           const encodedPath = encodeURIComponent(pathToEncode);
@@ -134,7 +133,6 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
         if (topDefined) {
           break;
         }
-        console
         nextUrl = pageData['@iot.nextLink'];
         console.log("next url is",nextUrl);
       }
@@ -165,9 +163,7 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
     const allObservations = [...entity.Observations];
 
     while (nextObservationsUrl) {
-      // Extract the path part (entity path + query parameters) and encode it
-      // should be refactored and put on .env or constant fi;e
-      const urlParts = nextObservationsUrl.split('/v4/v1.1/');
+    const urlParts = nextObservationsUrl.split(this.instanceSettings.jsonData.apiUrl || '');
       if (urlParts.length > 1) {
         const pathToEncode = urlParts[1];
         const encodedPath = encodeURIComponent(pathToEncode);
