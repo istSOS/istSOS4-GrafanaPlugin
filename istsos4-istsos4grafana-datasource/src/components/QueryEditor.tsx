@@ -14,7 +14,7 @@ import {
 import { QueryEditorProps, SelectableValue } from '@grafana/data';
 import { DataSource } from '../datasource';
 import { MyDataSourceOptions, IstSOS4Query, EntityType, ExpandOption, FilterCondition } from '../types';
-import { buildODataQuery } from '../utils/queryBuilder';
+import { buildODataQuery } from '../queryBuilder';
 import { FilterPanel } from './FilterPanel';
 import { VariablesPanel } from './VariablesPanel';
 import { ENTITY_OPTIONS, RESULT_FORMAT_OPTIONS } from '../utils/constants';
@@ -22,16 +22,7 @@ import { compareEntityNames, getStyles, getExpandOptions } from '../utils/utils'
 
 type Props = QueryEditorProps<DataSource, IstSOS4Query, MyDataSourceOptions>;
 
-interface Entity {
-  '@iot.id': number;
-  name?: string;
-  description?: string;
-}
-
 export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [entityList, setEntityList] = useState<Entity[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [showVariables, setShowVariables] = useState(false);
 
@@ -114,10 +105,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     const currentFilters = currentQuery.filters || [];
     const hadObservationFilters = currentFilters.some((f) => f.type === 'observation');
     const hasObservationFilters = filters.some((f) => f.type === 'observation');
-
-    // If we're removing all Observation filters and the entity is Datastreams
     if (hadObservationFilters && !hasObservationFilters && currentQuery.entity === 'Datastreams') {
-      // Find and update the Observations expand to remove any filter
       const newExpand = currentQuery.expand?.map((exp) => {
         if (exp.entity === 'Observations' && exp.subQuery?.filter) {
           const newSubQuery = { ...exp.subQuery };
@@ -145,66 +133,6 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
     fullUrl += queryString;
     return fullUrl;
   };
-
-  const handleSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
-    setSearchQuery(event.target.value);
-  };
-
-  const fetchEntities = async () => {
-    if (!currentQuery.entity) return;
-
-    setIsLoading(true);
-    try {
-      const fetchQuery: IstSOS4Query = {
-        ...currentQuery,
-        entityId: undefined,
-        select: ['name', 'description', '@iot.id'],
-        top: 100,
-        refId: 'entities',
-      };
-
-      const response = await datasource.query(
-        {
-          targets: [fetchQuery],
-        } as any,
-        false
-      );
-
-      if (response.data && response.data.length > 0 && response.data[0].meta?.custom?.rawResponse) {
-        const rawResponse = response.data[0].meta.custom.rawResponse;
-        if (rawResponse.value && Array.isArray(rawResponse.value)) {
-          setEntityList(rawResponse.value);
-          console.log('Fetched entities:', rawResponse.value);
-        }
-      } else {
-        setEntityList([]);
-      }
-    } catch (error) {
-      console.error('Error fetching entities:', error);
-      setEntityList([]);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  const selectEntity = (entityId: number) => {
-    onChange({
-      ...currentQuery,
-      entityId,
-    });
-  };
-
-  const filteredEntities = entityList.filter((entity) => {
-    if (!searchQuery) return true;
-
-    const id = entity['@iot.id']?.toString().toLowerCase() || '';
-    const name = entity.name?.toLowerCase() || '';
-    const description = entity.description?.toLowerCase() || '';
-    const query = searchQuery.toLowerCase();
-
-    return id.includes(query) || name.includes(query) || description.includes(query);
-  });
-
   return (
     <div>
       <Stack gap={1}>
@@ -229,23 +157,25 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
             </InlineField>
           </InlineFieldRow>
           <InlineFieldRow>
-            <InlineField
+            {expandOptions.length > 0 && (
+              <InlineField
               label="Expand Entities"
-              labelWidth={12}
+              labelWidth={18}
               tooltip="Select related entities to include in the response"
               grow
-            >
+              >
               <MultiSelect
                 options={expandOptions}
                 value={
-                  (currentQuery.expand
-                    ?.map((exp) => expandOptions.find((opt) => opt.value === exp.entity))
-                    .filter(Boolean) as SelectableValue<EntityType>[]) || []
+                (currentQuery.expand
+                  ?.map((exp) => expandOptions.find((opt) => opt.value === exp.entity))
+                  .filter(Boolean) as Array<SelectableValue<EntityType>>) || []
                 }
                 onChange={onExpandChange}
                 placeholder="Select entities to expand..."
               />
-            </InlineField>
+              </InlineField>
+            )}
           </InlineFieldRow>
           <div style={{ height: '10px' }} />
           <InlineFieldRow>
@@ -266,14 +196,14 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
           <InlineFieldRow>
             <InlineField 
               label="Custom Query" 
-              labelWidth={12} 
-              tooltip="Enter a complete ISTSOS query fragment (e.g., $filter=name eq 'sensor1' or $filter=Thing/id eq '$Things')" 
+              labelWidth={16} 
+              tooltip="Enter a complete ISTSOS query fragment (e.g., $filter=name eq 'sensor1')" 
               grow
             >
               <Input 
                 value={currentQuery.expression || ''} 
                 onChange={onCustomQueryChange} 
-                placeholder="e.g., $filter=name eq 'sensor1' or $top=10&$filter=Thing/id eq '$Things'" 
+                placeholder="e.g., $filter=name eq 'sensor1'" 
               />
             </InlineField>
           </InlineFieldRow>
@@ -289,7 +219,7 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
                 fontSize: '12px',
                 color: '#7d8590'
               }}>
-                ℹ️ Using custom query expression. Filters below are ignored when custom query is set.
+                ℹ️ Using custom query expression. This Expression only will be applied to the entire query.
               </div>
             ) : null}
             <Button
@@ -370,54 +300,6 @@ export function QueryEditor({ query, onChange, onRunQuery, datasource }: Props) 
               />
             </InlineField>
           </InlineFieldRow>
-        </FieldSet>
-
-        {/* Entity Browser */}
-        <FieldSet label={`${currentQuery.entity} Browser`}>
-          <div className={styles.searchRow}>
-            <Input
-              value={searchQuery}
-              onChange={handleSearchChange}
-              placeholder={`Search ${currentQuery.entity} by ID, name, or description`}
-              width={30}
-            />
-            <Button onClick={fetchEntities} disabled={isLoading}>
-              {isLoading ? 'Loading...' : 'Fetch Entities'}
-            </Button>
-          </div>
-
-          {entityList.length > 0 ? (
-            <div className={styles.tableContainer}>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Name</th>
-                    <th>Description</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {filteredEntities.map((entity) => (
-                    <tr key={entity['@iot.id']}>
-                      <td>{entity['@iot.id']}</td>
-                      <td>{entity.name || 'N/A'}</td>
-                      <td className={styles.descriptionCell}>{entity.description || 'N/A'}</td>
-                      <td>
-                        <Button size="sm" variant="secondary" onClick={() => selectEntity(entity['@iot.id'])}>
-                          Select
-                        </Button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          ) : (
-            <div className={styles.emptyState}>
-              {isLoading ? 'Loading entities...' : 'Click "Fetch Entities" to browse available entities'}
-            </div>
-          )}
         </FieldSet>
       </Stack>
       <div style={{ width: '100%' }}>
