@@ -9,8 +9,8 @@ import {
   ObservationFilter,
   VariableFilter,
   EntityFilter,
-} from '../types';
-import { compareEntityNames, getSingularEntityName } from './utils';
+} from './types';
+import { compareEntityNames, getSingularEntityName } from './utils/utils';
 
 /*
 This file contains the Query Builder class.
@@ -108,10 +108,8 @@ export function buildODataQuery(query: IstSOS4Query, encode: boolean = true): st
   // Check if custom query expression exists
   if (query.expression && query.expression.trim()) {
     const expression = query.expression.trim();
-    if (!expression.startsWith('?')) {
-      return `?${expression}`;
-    }
-    return expression;
+    const formattedExpression = expression.startsWith('?') ? expression : `?${expression}`;
+    return encode ? encodeURIComponent(formattedExpression) : formattedExpression;
   }
 
   // Fall back to existing filter logic only if no custom expression
@@ -155,36 +153,11 @@ export function buildODataQuery(query: IstSOS4Query, encode: boolean = true): st
     }
   }
 
-  if (query.expand && query.expand.length > 0) {
-    const expandParts = query.expand.map((exp) => {
-      let expandStr = exp.entity;
-      if (exp.entity === 'HistoricalLocations') {
-        expandStr += '($expand=Locations)';
-      }
-      if (exp.subQuery) {
-        const subParams: string[] = [];
-        if (exp.subQuery.filter) {subParams.push(`$filter=${exp.subQuery.filter}`)};
-        if (exp.subQuery.select) {subParams.push(`$select=${exp.subQuery.select.join(',')}`)};
-        if (exp.subQuery.orderby) {
-          const orderParts = exp.subQuery.orderby.map((o: OrderByOption) => `${o.property} ${o.direction}`);
-          subParams.push(`$orderby=${orderParts.join(',')}`);
-        }
-        if (exp.subQuery.top) {subParams.push(`$top=${exp.subQuery.top}`)};
-        if (exp.subQuery.skip) {subParams.push(`$skip=${exp.subQuery.skip}`)};
-
-        if (subParams.length > 0) {
-          expandStr += `(${subParams.join(';')})`;
-        }
-      }
-      return expandStr;
-    });
-    params.push(`$expand=${expandParts.join(',')}`);
-  }
-
-  // Rest of the function remains unchanged
   if (query.select && query.select.length > 0) {
-    params.push(`$select=${query.select.join(',')}`);
+    const idExists = query.select.includes('id');
+    idExists?params.push(`$select=${query.select.join(',')}`): params.push(`$select=${['@iot.id', ...query.select].join(',')}`);
   }
+  
 
   if (query.orderby && query.orderby.length > 0) {
     const orderParts = query.orderby.map((o) => `${o.property} ${o.direction}`);
@@ -216,7 +189,34 @@ export function buildODataQuery(query: IstSOS4Query, encode: boolean = true): st
     params.push(`to=${encode ? encodeURIComponent(query.fromTo.to) : query.fromTo.to}`);
   }
 
-  return params.length > 0 ? `?${params.join('&')}` : '';
+  if (query.expand && query.expand.length > 0) {
+    const expandParts = query.expand.map((exp) => {
+      let expandStr = exp.entity;
+      if (exp.entity === 'HistoricalLocations') {
+        expandStr += '($expand=Locations)';
+      }
+      if (exp.subQuery) {
+        const subParams: string[] = [];
+        if (exp.subQuery.filter) {subParams.push(`$filter=${exp.subQuery.filter}`)};
+        if (exp.subQuery.select) {subParams.push(`$select=${exp.subQuery.select.join(',')}`)};
+        if (exp.subQuery.orderby) {
+          const orderParts = exp.subQuery.orderby.map((o: OrderByOption) => `${o.property} ${o.direction}`);
+          subParams.push(`$orderby=${orderParts.join(',')}`);
+        }
+        if (exp.subQuery.top) {subParams.push(`$top=${exp.subQuery.top}`)};
+        if (exp.subQuery.skip) {subParams.push(`$skip=${exp.subQuery.skip}`)};
+
+        if (subParams.length > 0) {
+          expandStr += `(${subParams.join(';')})`;
+        }
+      }
+      return expandStr;
+    });
+    params.push(`$expand=${expandParts.join(',')}`);
+  }
+
+  const queryString = params.length > 0 ? `?${params.join('&')}` : '';
+  return encode ? encodeURIComponent(queryString) : queryString;
 }
 
 /**
@@ -259,7 +259,7 @@ function buildTemporalFilter(filter: TemporalFilter): string {
     )}`;
   } else if (filter.operator && filter.value !== null && filter.value !== undefined) {
     if (['year', 'month', 'day', 'hour', 'minute', 'second'].includes(filter.operator)) {
-      return `${filter.operator}(${filter.field}) eq ${filter.value}`;
+    return `${filter.operator}(${filter.field}) eq ${filter.value}`;
     } else {
       return `${filter.field} ${filter.operator} ${formatValue(filter.value)}`;
     }
@@ -425,49 +425,3 @@ export function buildApiUrl(baseUrl: string, query: IstSOS4Query): string {
 
   return url;
 }
-
-/**
- * Common filter expressions for SensorThings API
- */
-export const FilterExpressions = {
-  // Comparison operators
-  equals: (property: string, value: string | number) =>
-    `${property} eq ${typeof value === 'string' ? `'${value}'` : value}`,
-  notEquals: (property: string, value: string | number) =>
-    `${property} ne ${typeof value === 'string' ? `'${value}'` : value}`,
-  greaterThan: (property: string, value: string | number) =>
-    `${property} gt ${typeof value === 'string' ? `'${value}'` : value}`,
-  greaterThanOrEqual: (property: string, value: string | number) =>
-    `${property} ge ${typeof value === 'string' ? `'${value}'` : value}`,
-  lessThan: (property: string, value: string | number) =>
-    `${property} lt ${typeof value === 'string' ? `'${value}'` : value}`,
-  lessThanOrEqual: (property: string, value: string | number) =>
-    `${property} le ${typeof value === 'string' ? `'${value}'` : value}`,
-
-  // String functions
-  startsWith: (property: string, value: string) => `startswith(${property},'${value}')`,
-  endsWith: (property: string, value: string) => `endswith(${property},'${value}')`,
-  substringof: (property: string, value: string) => `substringof('${value}',${property})`,
-
-  // Date/time functions
-  year: (property: string, value: number) => `year(${property}) eq ${value}`,
-  month: (property: string, value: number) => `month(${property}) eq ${value}`,
-  day: (property: string, value: number) => `day(${property}) eq ${value}`,
-  hour: (property: string, value: number) => `hour(${property}) eq ${value}`,
-  minute: (property: string, value: number) => `minute(${property}) eq ${value}`,
-  second: (property: string, value: number) => `second(${property}) eq ${value}`,
-
-  // Time range
-  timeRange: (property: string, from: string, to: string) => `${property} ge ${from} and ${property} le ${to}`,
-
-  // Logical operators
-  and: (...expressions: string[]) => expressions.join(' and '),
-  or: (...expressions: string[]) => expressions.join(' or '),
-  not: (expression: string) => `not (${expression})`,
-
-  // Spatial functions (for Location entities)
-  within: (property: string, geometry: string) => `st_within(${property}, ${geometry})`,
-  intersects: (property: string, geometry: string) => `st_intersects(${property}, ${geometry})`,
-  distance: (property: string, geometry: string, distance: number) =>
-    `st_distance(${property}, ${geometry}) le ${distance}`,
-};

@@ -147,7 +147,7 @@ export function ConfigEditor(props: Props) {
           id="config-editor-path"
           onChange={onPathChange}
           value={jsonData.path || ''}
-          placeholder="e.g. /v1.1 or leave empty"
+          placeholder="Specific API path or leave empty"
           width={40}
         />
       </InlineField>

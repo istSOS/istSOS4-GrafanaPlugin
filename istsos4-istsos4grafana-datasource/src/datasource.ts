@@ -15,7 +15,7 @@ import { getBackendSrv, getTemplateSrv } from '@grafana/runtime';
 import { firstValueFrom } from 'rxjs';
 
 import { IstSOS4Query, MyDataSourceOptions, DEFAULT_QUERY, SensorThingsResponse } from './types';
-import { buildApiUrl } from './utils/queryBuilder';
+import { buildApiUrl } from './queryBuilder';
 
 import { compareEntityNames, searchExpandEntity } from './utils/utils';
 import { transformDatastreams } from './transformations/datastream';
@@ -45,10 +45,9 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
    * Also handles pagination for expanded Observations within entities
    * @param baseUrl The base API URL
    * @param query The query object
-   * @param maxItems Maximum number of items to fetch (default: 10000)
    * @returns Combined response with all paginated data
    */
-  private async fetchAllPages(baseUrl: string, query: IstSOS4Query, maxItems = 10000): Promise<SensorThingsResponse> {
+  private async fetchAllPages(baseUrl: string, query: IstSOS4Query): Promise<SensorThingsResponse> {
     const modifiedQuery = { ...query };
     const hasEntityId = modifiedQuery.entityId !== undefined;
     const topDefined = modifiedQuery.top !== undefined;
@@ -59,11 +58,8 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
     const hasExpandedObservations =
     modifiedQuery.expand?.some((exp) => exp.entity === 'Observations') ||
     (modifiedQuery.expression && searchExpandEntity(modifiedQuery.expression, 'Observations'));
-
-
-    console.log("has expanded observations:", hasExpandedObservations);
     if (hasExpandedObservations) {
-      console.log('Query includes expanded Observations - pagination will be applied to expanded Observations arrays');
+      console.log('Query includes expanded Observations');
       modifiedQuery.expand = modifiedQuery.expand?.map((exp) => {
         if (exp.entity === 'Observations') {
           return {
@@ -83,14 +79,19 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
     let nextUrl: string | undefined = queryURL;
 
     while (nextUrl) {
+      let cleanUrl = nextUrl;
+      
       if (allData.length > 0) {
-        nextUrl = nextUrl.replace(this.instanceSettings.jsonData.apiUrl || '', baseUrl);
+        const urlParts = nextUrl.split(this.instanceSettings.jsonData.apiUrl || '');
+        if (urlParts.length > 1) {
+          const pathToEncode = urlParts[1]; 
+          const encodedPath = encodeURIComponent(pathToEncode);
+          cleanUrl = `${baseUrl}/${encodedPath}`;
+        }
       }
-
-      console.log(`Fetching page: ${nextUrl}`);
       const response: any = await firstValueFrom(
         getBackendSrv().fetch({
-          url: nextUrl,
+          url: cleanUrl,
           method: 'GET',
         })
       );
@@ -106,7 +107,6 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
             await this.handleExpandedObservationsPagination(pageData, baseUrl);
           }
           allData.push(pageData);
-          console.log(`Fetched single entity with ID: ${pageData['@iot.id']}`);
         }
         break;
       } else {
@@ -121,7 +121,6 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
           }
         }
         allData.push(...pageData.value);
-        console.log(`Fetched ${pageData.value.length} items, total so far: ${allData.length}`);
         if (topDefined) {
           break;
         }
@@ -150,20 +149,23 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
       return;
     }
 
-    console.log(`Found expanded Observations with pagination for entity ${entity['@iot.id']}`);
     const allObservations = [...entity.Observations];
 
     while (nextObservationsUrl) {
-      nextObservationsUrl = nextObservationsUrl.replace(this.instanceSettings.jsonData.apiUrl || '', baseUrl);
-      console.log(`Fetching next page of Observations: ${nextObservationsUrl}`);
+    const urlParts = nextObservationsUrl.split(this.instanceSettings.jsonData.apiUrl || '');
+      if (urlParts.length > 1) {
+        const pathToEncode = urlParts[1];
+        const encodedPath = encodeURIComponent(pathToEncode);
+        const cleanUrl = `${baseUrl}/${encodedPath}`;
+        console.log(`Fetching next page of Observations: ${cleanUrl}`);
 
-      try {
-        const response: any = await firstValueFrom(
-          getBackendSrv().fetch({
-            url: nextObservationsUrl,
-            method: 'GET',
-          })
-        );
+        try {
+          const response: any = await firstValueFrom(
+            getBackendSrv().fetch({
+              url: cleanUrl,
+              method: 'GET',
+            })
+          );
 
         const observationsData: any = response?.data;
         if (!observationsData || !observationsData.value || !Array.isArray(observationsData.value)) {
@@ -184,29 +186,35 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
     entity.Observations = allObservations;
     delete entity['Observations@iot.nextLink'];
   }
-
+}
+/*
+Function for Custom Query Expression Variable Subsitutation(focus on the $vars within Single quotes)
+*/
   private applyCustomVariableSubstitution(expression: string, scopedVars: ScopedVars): string {
     if (!expression) {
       return expression;
     }
-
     // Regular expression to find content within single quotes that contains $
     const quotedVariablePattern = /'([^']*\$[^']*)'/g;
-
     return expression.replace(quotedVariablePattern, (match, quotedContent) => {
-      // Apply template variable substitution only to content inside quotes
       const substituted = getTemplateSrv().replace(quotedContent, scopedVars);
+      if (substituted.includes(',')) {
+        const values = substituted.split(',').map(val => val.trim());
+        return `'${values.join("','")}'`;
+      }
       return `'${substituted}'`;
     });
   }
 
+  // Apply Variables Subsitutation
+  // - if query.expression is defined, then it applies template variable substitution on the expression only
+  // - else it applies the filters defined in the Variable filters
   applyTemplateVariables(query: IstSOS4Query, scopedVars: ScopedVars) {
     let modifiedQuery = {
       ...query,
       alias: query.alias ? getTemplateSrv().replace(query.alias, scopedVars) : query.alias,
     };
 
-    // Handle custom query expression with special variable substitution
     if (modifiedQuery.expression) {
       modifiedQuery.expression = this.applyCustomVariableSubstitution(modifiedQuery.expression, scopedVars);
     }
@@ -217,13 +225,8 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
           if (filter.type !== 'variable') {
             return filter;
           }
-
           const variableFilter = filter as any;
           const variableValue = getTemplateSrv().replace(variableFilter.variableName, scopedVars);
-          console.log(
-            `Processing variable filter: ${variableFilter.variableName}, entity: ${variableFilter.entity}, value: ${variableValue}`
-          );
-
           if (!variableValue || variableValue === variableFilter.variableName) {
             return { ...variableFilter, value: null };
           }
@@ -234,10 +237,8 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
               modifiedQuery.entityId = numericValue;
               console.log(`Applied variable ${variableFilter.variableName} as entityId: ${numericValue}`);
               return null;
-              // Remove Variable filter that has entity equal to the query entity
             }
           }
-          console.log(`Updated variable filter ${variableFilter.variableName} with value: ${variableValue}`);
           return { ...variableFilter, value: variableValue };
         })
 
@@ -254,6 +255,7 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
    * transformResponse: weather to transform the response into Grafana data frames or return raw data.
    * If true, the response will be transformed into Grafana data frames.
    * it maybe useful for intermediate requests (when we do not need to display the response in Grafana panels).
+   * Default Grafana function that is get triggered when hitting the RunQuery button
    */
   async query(options: DataQueryRequest<IstSOS4Query>, transformResponse = true): Promise<DataQueryResponse> {
     const promises = options.targets.map(async (target) => {
@@ -308,7 +310,10 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
     const data = results.flat();
     return { data };
   }
-
+  /*
+  Function to test the API that is being entered by the user
+  Grafana Specific
+  */
   async testDatasource(): Promise<TestDataSourceResponse> {
     try {
       const config = this.instanceSettings.jsonData;
@@ -341,7 +346,7 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
       try {
         const routePath = '/sensorapi';
         const path = config.path || '';
-        const testUrl = `${this.url}${routePath}${path}/Things`;
+        const testUrl = `${this.url}${routePath}${path}/`;
 
         const response = await firstValueFrom(
           getBackendSrv().fetch({
@@ -392,25 +397,22 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
       };
     }
   }
-
+  /*
+   * Grafana specific function that gets called on Variable editor changes
+     Logic that should be triggered on change in Variable QueryEditor should be applied here
+   */
   async metricFindQuery(query: IstSOS4Query, options?: any): Promise<MetricFindValue[]> {
-    console.log('Metric find query:', query);
+    console.log('Original query:', query);
     const modifiedQuery = this.applyTemplateVariables(query, options?.scopedVars);
     console.log('Modified query:', modifiedQuery);
-
     try {
       const routePath = '/sensorapi';
       const path = this.instanceSettings.jsonData.path || '';
       const baseUrl = `${this.url}${routePath}${path}`;
-
-      // Use pagination helper with smaller limit for variable queries
       const responseData = await this.fetchAllPages(baseUrl, modifiedQuery);
-
       if (!responseData.value || !Array.isArray(responseData.value)) {
         return [];
       }
-
-      console.log('Total entities fetched:', responseData.value.length);
       const result = responseData.value.map((entity: any) => {
         let text = entity.name || entity['@iot.id']?.toString() || '';
         let value = entity['@iot.id']?.toString() || '';
@@ -426,7 +428,6 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
   // Transform SensorThings API response to Grafana data frames
   private transformResponse(response: any, target: IstSOS4Query): DataFrame | DataFrame[] {
     const data = response.data as SensorThingsResponse;
-    console.log('SensorThings API Response:', data);
     switch (target.entity) {
       case 'Observations':
         return transformObservations(data, target);
@@ -449,6 +450,7 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
     }
   }
 
+  // Fallback Transform function that gets the common fields on all entities
   private transformGeneric(data: SensorThingsResponse, target: IstSOS4Query) {
     if (!data.value || data.value.length === 0) {
       return createDataFrame({
@@ -461,7 +463,6 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
     const firstItem = data.value[0];
     const fields: any[] = [];
 
-    // Extract common fields
     if (firstItem['@iot.id'] !== undefined) {
       fields.push({
         name: 'id',

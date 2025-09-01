@@ -1,6 +1,6 @@
 import { createDataFrame, FieldType } from '@grafana/data';
 import { IstSOS4Query } from 'types';
-import { getSingularEntityName, convertEPSG2056ToWGS84 } from 'utils/utils';
+import { getSingularEntityName, convertToWGS84 } from 'utils/utils';
 export function transformEntityWithDatastreams(entities: any[], target: IstSOS4Query) {
   const Ids: number[] = [];
   const Names: string[] = [];
@@ -109,7 +109,7 @@ export function getTransformedGeometry(location: any): any {
   switch (location.type) {
     case 'Point':
       const coords = location.coordinates;
-      const [lon, lat] = convertEPSG2056ToWGS84(coords[0], coords[1]);
+      const [lon, lat] = location.crs?.properties?.name ? convertToWGS84(location.crs.properties.name, [coords[0], coords[1]]) : [coords[0], coords[1]];
       transformedGeometry = {
         type: 'Point',
         coordinates: [lon, lat],
@@ -118,7 +118,7 @@ export function getTransformedGeometry(location: any): any {
     case 'Polygon':
       const transformedCoordinates = location.coordinates.map((ring: number[][]) =>
         ring.map((coord: number[]) => {
-          const [lon, lat] = convertEPSG2056ToWGS84(coord[0], coord[1]);
+          const [lon, lat] = location.crs?.properties?.name ? convertToWGS84(location.crs.properties.name, [coord[0], coord[1]]) : [coord[0], coord[1]];
           return [lon, lat];
         })
       );
@@ -130,7 +130,7 @@ export function getTransformedGeometry(location: any): any {
 
     case 'LineString':
       const transformedLineCoords = location.coordinates.map((coord: number[]) => {
-        const [lon, lat] = convertEPSG2056ToWGS84(coord[0], coord[1]);
+        const [lon, lat] = location.crs?.properties?.name ? convertToWGS84(location.crs.properties.name, [coord[0], coord[1]]) : [coord[0], coord[1]];
         return [lon, lat];
       });
       transformedGeometry = {
