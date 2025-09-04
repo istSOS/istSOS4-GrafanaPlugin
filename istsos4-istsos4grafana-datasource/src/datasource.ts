@@ -82,7 +82,7 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
       let cleanUrl = nextUrl;
       
       if (allData.length > 0) {
-        const urlParts = nextUrl.split(this.instanceSettings.jsonData.apiUrl || '');
+        const urlParts = nextUrl.split(this.instanceSettings.jsonData.apiUrl+'/' || '');
         if (urlParts.length > 1) {
           const pathToEncode = urlParts[1]; 
           const encodedPath = encodeURIComponent(pathToEncode);
@@ -152,7 +152,7 @@ export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions>
     const allObservations = [...entity.Observations];
 
     while (nextObservationsUrl) {
-    const urlParts = nextObservationsUrl.split(this.instanceSettings.jsonData.apiUrl || '');
+    const urlParts = nextObservationsUrl.split(this.instanceSettings.jsonData.apiUrl+'/' || '');
       if (urlParts.length > 1) {
         const pathToEncode = urlParts[1];
         const encodedPath = encodeURIComponent(pathToEncode);
