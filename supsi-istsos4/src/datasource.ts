@@ -27,8 +27,6 @@ import { transformHistoricalLocations } from 'transformations/historicalLocation
 import { transformFeatureOfInterest } from 'transformations/featureOfInterest';
 import { transformObservations } from 'transformations/observations';
 
-export const GRAFANA_ACCESS_POLICY_TOKEN = 'GRAFANA_ACCESS_POLICY_TOKEN';
-
 export class DataSource extends DataSourceApi<IstSOS4Query, MyDataSourceOptions> {
   url?: string;
 

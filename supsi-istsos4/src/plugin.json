@@ -2,7 +2,7 @@
   "$schema": "https://raw.githubusercontent.com/grafana/grafana/main/docs/sources/developers/plugins/plugin.schema.json",
   "type": "datasource",
   "name": "IstSOS4Grafana",
-  "id": "istsos4-istsos4grafana-datasource",
+  "id": "supsi-istsos4",
   "metrics": true,
   "backend": false,
   "executable": "gpx_ist_sos4_grafana",
@@ -11,7 +11,12 @@
     "author": {
       "name": "Ist sos4"
     },
-    "keywords": ["datasource", "sensorthings", "oauth2", "iot"],
+    "keywords": [
+      "datasource",
+      "sensorthings",
+      "oauth2",
+      "iot"
+    ],
     "logos": {
       "small": "img/logo.svg",
       "large": "img/logo.svg"

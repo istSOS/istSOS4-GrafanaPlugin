@@ -8,29 +8,29 @@ USER root
 
 # Install development dependencies
 RUN if grep -i -q alpine /etc/issue; then \
-        apk add --no-cache \
-            nodejs \
-            npm \
-            git \
-            bash \
-            curl \
-            inotify-tools \
-            supervisor \
-            su-exec; \
+    apk add --no-cache \
+    nodejs \
+    npm \
+    git \
+    bash \
+    curl \
+    inotify-tools \
+    supervisor \
+    su-exec; \
     elif grep -i -q ubuntu /etc/issue; then \
-        DEBIAN_FRONTEND=noninteractive && \
-        apt-get update && \
-        apt-get install -y \
-            nodejs \
-            npm \
-            git \
-            bash \
-            curl \
-            inotify-tools \
-            supervisor && \
-        rm -rf /var/lib/apt/lists/*; \
+    DEBIAN_FRONTEND=noninteractive && \
+    apt-get update && \
+    apt-get install -y \
+    nodejs \
+    npm \
+    git \
+    bash \
+    curl \
+    inotify-tools \
+    supervisor && \
+    rm -rf /var/lib/apt/lists/*; \
     else \
-        echo 'ERROR: Unsupported base image' && /bin/false; \
+    echo 'ERROR: Unsupported base image' && /bin/false; \
     fi
 
 # Create plugin directory and set permissions
@@ -82,9 +82,9 @@ FROM grafana/${grafana_image}:${grafana_version} AS production
 USER root
 
 # Copy built plugin
-COPY --from=builder /plugin/dist /var/lib/grafana/plugins/istsos4-istsos4grafana-datasource
+COPY --from=builder /plugin/dist /var/lib/grafana/plugins/supsi-istsos4
 
 # Set proper permissions
-RUN chown -R 472:0 /var/lib/grafana/plugins/istsos4-istsos4grafana-datasource
+RUN chown -R 472:0 /var/lib/grafana/plugins/supsi-istsos4
 
 USER 472

@@ -2,7 +2,7 @@ apiVersion: 1
 
 datasources:
   - name: 'istSOS4Grafana'
-    type: 'istsos4-istsos4grafana-datasource'
+    type: 'supsi-istsos4'
     access: proxy
     isDefault: false
     orgId: 1

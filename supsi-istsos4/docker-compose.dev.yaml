@@ -14,7 +14,7 @@ services:
     user: root
     
     ports:
-      - "3000:3000"    # Grafana web interface
+      - "3006:3000"    # Grafana web interface
       - "2345:2345"    # Delve debugger port
       - "35729:35729"  # LiveReload port
     
@@ -24,7 +24,7 @@ services:
       # Mount node_modules as a named volume
       - node_modules:/plugin/node_modules
       # Mount dist directly to Grafana plugins directory
-      - ./dist:/var/lib/grafana/plugins/istsos4-istsos4grafana-datasource
+      - ./dist:/var/lib/grafana/plugins/supsi-istsos4
       # Mount provisioning
       - ./provisioning:/etc/grafana/provisioning
     
@@ -32,10 +32,10 @@ services:
       NODE_ENV: development
       
       # Grafana Configuration
-      GF_LOG_FILTERS: plugin.istsos4-istsos4grafana-datasource:debug
+      GF_LOG_FILTERS: plugin.supsi-istsos4:debug
       GF_LOG_LEVEL: debug
       GF_DATAPROXY_LOGGING: 1
-      GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: istsos4-istsos4grafana-datasource
+      GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS: supsi-istsos4
       GF_INSTALL_PLUGINS: orchestracities-map-panel
       
       # Security settings for development

@@ -193,7 +193,7 @@ jobs:
       - name: Docker logs
         if: ${{ always() && steps.run-tests.outcome == 'failure' }}
         run: |
-          docker logs istsos4-istsos4grafana-datasource >& grafana-server.log
+          docker logs supsi-istsos4-grafana >& grafana-server.log
 
       - name: Stop grafana docker
         run: docker compose down
